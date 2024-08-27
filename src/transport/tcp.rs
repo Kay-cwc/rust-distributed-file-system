@@ -8,8 +8,6 @@ use crate::transport::p2p::P2P;
 
 use super::handshake::ErrInvalidHandshake;
 
-// use super::handshake::{no_handshake, HandShakeFn};
-
 // the peer struct is responsible for the connection between nodes
 pub struct TCPPeer {
     // the underlying connection of the peer
@@ -19,9 +17,17 @@ pub struct TCPPeer {
     outbound: bool,
 }
 
-// the transport layer is responsible for the communication between nodes
-pub struct TcpTransport {
+pub type HandShakeFn = fn(peer: &TCPPeer) -> Result<(), ErrInvalidHandshake>;
+
+pub struct TCPTransportOpts {
     pub listen_addr: String,
+    // allow the handshake function to be passed from the constructor
+    pub shakehands: HandShakeFn,
+}
+
+// the transport layer is responsible for the communication between nodes
+pub struct TCPTransport {
+    pub opts: TCPTransportOpts,
     listener: TcpListener,
 
     peers: Mutex<HashMap<SocketAddr, TCPPeer>>,
@@ -29,7 +35,7 @@ pub struct TcpTransport {
 
 // section: implement the transport layer
 
-impl TcpTransport {
+impl TCPTransport {
     pub fn start_accept(&self) {
         for stream in self.listener.incoming() {
             match stream {
@@ -49,7 +55,7 @@ impl TcpTransport {
     fn handle_conn(&self, conn: TcpStream) {
         let peer = new_tcp_peer(conn, true);
 
-        match self.shakehands(&peer) {
+        match (self.opts.shakehands)(&peer) {
             Ok(_) => println!("Handshake successful"),
             Err(_) => {
                 peer.conn.shutdown(Shutdown::Both).unwrap();
@@ -59,19 +65,15 @@ impl TcpTransport {
 
         self.peers.lock().unwrap().insert(peer.conn.peer_addr().unwrap(), peer);
     }
-
-    fn shakehands(&self, _peer: &TCPPeer) -> Result<(), ErrInvalidHandshake> {
-        Ok(())
-    }
 }
 
-impl AsRef<TcpTransport> for TcpTransport {
-    fn as_ref(&self) -> &TcpTransport {
+impl AsRef<TCPTransport> for TCPTransport {
+    fn as_ref(&self) -> &TCPTransport {
         self
     }
 }
 
-impl P2P for TcpTransport {
+impl P2P for TCPTransport {
     fn listen_and_accept(self: Arc<Self>) -> Result<(), Error> {
         thread::spawn(move || {
             self.start_accept();
@@ -83,10 +85,11 @@ impl P2P for TcpTransport {
 
 // section: all public function for the transport layer
 
-pub fn new_tcp_transport(addr: &String) -> Arc<TcpTransport> {
-    Arc::new(TcpTransport {
-        listen_addr: addr.clone(),
-        listener: TcpListener::bind(addr).unwrap(),
+pub fn new_tcp_transport(opts: TCPTransportOpts) -> Arc<TCPTransport> {
+    let listener = TcpListener::bind(&opts.listen_addr).unwrap();
+    Arc::new(TCPTransport {
+        opts,
+        listener,
         peers: Mutex::new(HashMap::new()),
     })
 }
@@ -111,14 +114,23 @@ mod tests {
     #[test]
     fn test_new_tcp_transport() {
         let addr = String::from("localhost:3000");
-        let transport = new_tcp_transport(&addr);
-        assert_eq!(transport.listen_addr, addr);
+        let opts = TCPTransportOpts {
+            listen_addr: addr.clone(),
+            shakehands: |_| Ok(()),
+        };
+        let transport = new_tcp_transport(opts);
+        assert_eq!(transport.opts.listen_addr, addr);
     }
 
     #[test]
     fn test_listen_and_accept() {
         let addr = String::from("localhost:3000");
-        let transport = new_tcp_transport(&addr);
+        let opts = TCPTransportOpts {
+            listen_addr: addr.clone(),
+            shakehands: |_| Ok(()),
+        };
+
+        let transport = new_tcp_transport(opts);
         // test if the listen_and_accept function is working
         assert_eq!(transport.listen_and_accept().is_ok(), true);
     }

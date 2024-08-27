@@ -1,13 +1,16 @@
 pub mod transport;
 
-use transport::tcp;
+use transport::tcp::{self, TCPTransportOpts};
 use transport::p2p::P2P;
 
 fn main() {
     // FIXME: this is for testing only. should be updated later
-    let tcp_transport = tcp::new_tcp_transport(&String::from("localhost:3000"));
+    let opts = TCPTransportOpts {
+        listen_addr: String::from("localhost:3000"),
+        shakehands: |_| Ok(()),
+    };
+    let tcp_transport = tcp::new_tcp_transport(opts);
 
-    println!("Listening on {}", tcp_transport.listen_addr);
     tcp_transport.listen_and_accept().unwrap();
 
     loop {
