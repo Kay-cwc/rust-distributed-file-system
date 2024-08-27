@@ -8,24 +8,37 @@ use crate::transport::p2p::P2P;
 
 use super::handshake::ErrInvalidHandshake;
 
-// the peer struct is responsible for the connection between nodes
+/**
+ * the peer struct is responsible for the connection between nodes
+ */
 pub struct TCPPeer {
-    // the underlying connection of the peer
+    /**
+     * the underlying connection of the peer
+     */
     conn: TcpStream,
-    // if dial and retrieve the connection => outbound = true
-    // if accept and retrieve the connection => outbound = false
+    /**
+     * if dial and retrieve the connection => outbound = true
+     * if accept and retrieve the connection => outbound = false
+     */
     outbound: bool,
 }
 
 pub type HandShakeFn = fn(peer: &TCPPeer) -> Result<(), ErrInvalidHandshake>;
 
+/**
+ * defines the configuration of the tcp transport layer
+ */
 pub struct TCPTransportOpts {
     pub listen_addr: String,
-    // allow the handshake function to be passed from the constructor
+    /**
+     * allow the handshake function to be passed from the constructor
+     */
     pub shakehands: HandShakeFn,
 }
 
-// the transport layer is responsible for the communication between nodes
+/**
+ * TCPTransport maintains the tcp transport layer and connection with other peer nodes
+ */
 pub struct TCPTransport {
     pub opts: TCPTransportOpts,
     listener: TcpListener,
@@ -36,6 +49,9 @@ pub struct TCPTransport {
 // section: implement the transport layer
 
 impl TCPTransport {
+    /**
+     * create a loop to accept incoming connections
+     */
     pub fn start_accept(&self) {
         for stream in self.listener.incoming() {
             match stream {
@@ -50,8 +66,10 @@ impl TCPTransport {
         }
     }
 
-    // handle_conn is responsible for handling the connection between nodes
-    // it handles the handshake and store the peer in the peers list
+    /**
+     handle_conn is responsible for handling the connection between nodes
+     it handles the handshake and store the peer in the peers list
+     */
     fn handle_conn(&self, conn: TcpStream) {
         let peer = new_tcp_peer(conn, true);
 
