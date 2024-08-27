@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::fmt::Error;
 use std::sync::{Arc, Mutex};
-use std::{panic, thread};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::thread;
+use std::net::{SocketAddr, TcpListener, TcpStream, Shutdown};
 
 use crate::transport::p2p::P2P;
+
+use super::handshake::ErrInvalidHandshake;
 
 // use super::handshake::{no_handshake, HandShakeFn};
 
@@ -45,16 +47,20 @@ impl TcpTransport {
     // handle_conn is responsible for handling the connection between nodes
     // it handles the handshake and store the peer in the peers list
     fn handle_conn(&self, conn: TcpStream) {
-        match self.shakehands(&conn) {
+        let peer = new_tcp_peer(conn, true);
+
+        match self.shakehands(&peer) {
             Ok(_) => println!("Handshake successful"),
-            Err(_) => panic!("Handshake failed"),
+            Err(_) => {
+                peer.conn.shutdown(Shutdown::Both).unwrap();
+                return;
+            },
         };
 
-        let peer = new_tcp_peer(conn, true);
         self.peers.lock().unwrap().insert(peer.conn.peer_addr().unwrap(), peer);
     }
 
-    fn shakehands(&self, _conn: &TcpStream) -> Result<(), Error> {
+    fn shakehands(&self, _peer: &TCPPeer) -> Result<(), ErrInvalidHandshake> {
         Ok(())
     }
 }
