@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::fmt::Error;
+use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::net::{SocketAddr, TcpListener, TcpStream, Shutdown};
 
+use crate::transport::message::Message;
 use crate::transport::p2p::P2P;
 
+use super::encoding::Decoder;
 use super::handshake::ErrInvalidHandshake;
 
 /**
@@ -34,6 +37,7 @@ pub struct TCPTransportOpts {
      * allow the handshake function to be passed from the constructor
      */
     pub shakehands: HandShakeFn,
+    pub decoder: Box<dyn Decoder + Send + Sync>,
 }
 
 /**
@@ -71,7 +75,7 @@ impl TCPTransport {
      it handles the handshake and store the peer in the peers list
      */
     fn handle_conn(&self, conn: TcpStream) {
-        let peer = new_tcp_peer(conn, true);
+        let mut peer = new_tcp_peer(conn, true);
 
         match (self.opts.shakehands)(&peer) {
             Ok(_) => println!("Handshake successful"),
@@ -81,7 +85,21 @@ impl TCPTransport {
             },
         };
 
-        self.peers.lock().unwrap().insert(peer.conn.peer_addr().unwrap(), peer);
+        // self.peers.lock().unwrap().insert(peer.conn.peer_addr().unwrap(), peer);
+
+        // read from the connection
+        loop {
+            let mut msg = Message::new();
+            match self.opts.decoder.decode(&mut peer.conn, &mut msg) {
+                Ok(_) => {
+                    println!("Received data: {}", String::from_utf8_lossy(&msg.payload));
+                }
+                Err(e) => {
+                    println!("Error reading from connection: {}", e);
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -127,6 +145,8 @@ fn new_tcp_peer(conn: TcpStream, outbound: bool) -> TCPPeer {
 
 #[cfg(test)]
 mod tests {
+    use crate::transport::encoding::DefaultDecoder;
+
     use super::*;
 
     #[test]
@@ -135,6 +155,7 @@ mod tests {
         let opts = TCPTransportOpts {
             listen_addr: addr.clone(),
             shakehands: |_| Ok(()),
+            decoder: Box::new(DefaultDecoder {})
         };
         let transport = new_tcp_transport(opts);
         assert_eq!(transport.opts.listen_addr, addr);
@@ -146,6 +167,7 @@ mod tests {
         let opts = TCPTransportOpts {
             listen_addr: addr.clone(),
             shakehands: |_| Ok(()),
+            decoder: Box::new(DefaultDecoder {})
         };
 
         let transport = new_tcp_transport(opts);

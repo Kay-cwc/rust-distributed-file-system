@@ -1,5 +1,6 @@
 pub mod transport;
 
+use transport::encoding::DefaultDecoder;
 use transport::tcp::{self, TCPTransportOpts};
 use transport::p2p::P2P;
 
@@ -8,6 +9,7 @@ fn main() {
     let opts = TCPTransportOpts {
         listen_addr: String::from("localhost:3000"),
         shakehands: |_| Ok(()),
+        decoder: Box::new(DefaultDecoder {})
     };
     let tcp_transport = tcp::new_tcp_transport(opts);
 
