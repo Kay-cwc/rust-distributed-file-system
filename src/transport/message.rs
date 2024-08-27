@@ -1,12 +1,16 @@
+use std::net::SocketAddr;
+
 #[derive(Debug)]
 pub struct Message {
-    pub payload: [u8; 1024],
+    pub from: SocketAddr,
+    pub payload: Vec<u8>,
 }
 
 impl Message {
-    pub fn new() -> Message {
+    pub fn new(from: SocketAddr) -> Message {
         Message {
-            payload: [0; 1024],
+            from,
+            payload: Vec::new(),
         }
     }
 }

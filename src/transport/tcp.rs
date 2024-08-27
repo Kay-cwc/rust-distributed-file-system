@@ -110,10 +110,10 @@ impl TCPTransport {
 
         // read from the connection
         loop {
-            let mut msg = Message::new();
+            let mut msg = Message::new(peer.conn.peer_addr().unwrap());
             match self.opts.decoder.decode(&mut peer.conn, &mut msg) {
                 Ok(_) => {
-                    println!("Received data: {}", String::from_utf8_lossy(&msg.payload));
+                    println!("Received data from {}: {}", msg.from, String::from_utf8_lossy(&msg.payload));
                 }
                 Err(e) => {
                     println!("Error reading from connection: {}", e);
