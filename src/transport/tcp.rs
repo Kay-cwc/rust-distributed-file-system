@@ -26,6 +26,15 @@ pub struct TCPPeer {
     outbound: bool,
 }
 
+impl TCPPeer {
+    pub fn new(conn: TcpStream, outbound: bool) -> TCPPeer {
+        TCPPeer {
+            conn,
+            outbound,
+        }
+    }
+}
+
 pub type HandShakeFn = fn(peer: &TCPPeer) -> Result<(), ErrInvalidHandshake>;
 
 /**
@@ -54,6 +63,18 @@ pub struct TCPTransport {
 
 impl TCPTransport {
     /**
+     * create a new tcp transport layer
+     */
+    pub fn new(opts: TCPTransportOpts) -> Arc<TCPTransport> {
+        let listener = TcpListener::bind(&opts.listen_addr).unwrap();
+        Arc::new(TCPTransport {
+            opts,
+            listener,
+            peers: Mutex::new(HashMap::new()),
+        })
+    }
+
+    /**
      * create a loop to accept incoming connections
      */
     pub fn start_accept(&self) {
@@ -75,7 +96,7 @@ impl TCPTransport {
      it handles the handshake and store the peer in the peers list
      */
     fn handle_conn(&self, conn: TcpStream) {
-        let mut peer = new_tcp_peer(conn, true);
+        let mut peer = TCPPeer::new(conn, true);
 
         match (self.opts.shakehands)(&peer) {
             Ok(_) => println!("Handshake successful"),
@@ -119,28 +140,6 @@ impl P2P for TCPTransport {
     }
 }
 
-// section: all public function for the transport layer
-
-pub fn new_tcp_transport(opts: TCPTransportOpts) -> Arc<TCPTransport> {
-    let listener = TcpListener::bind(&opts.listen_addr).unwrap();
-    Arc::new(TCPTransport {
-        opts,
-        listener,
-        peers: Mutex::new(HashMap::new()),
-    })
-}
-
-// section: all private function for the transport layer
-
-fn new_tcp_peer(conn: TcpStream, outbound: bool) -> TCPPeer {
-    let peer = TCPPeer {
-        conn,
-        outbound,
-    };
-
-    return peer;
-}
-
 // section: tests
 
 #[cfg(test)]
@@ -157,7 +156,7 @@ mod tests {
             shakehands: |_| Ok(()),
             decoder: Box::new(DefaultDecoder {})
         };
-        let transport = new_tcp_transport(opts);
+        let transport = TCPTransport::new(opts);
         assert_eq!(transport.opts.listen_addr, addr);
     }
 
@@ -170,7 +169,7 @@ mod tests {
             decoder: Box::new(DefaultDecoder {})
         };
 
-        let transport = new_tcp_transport(opts);
+        let transport = TCPTransport::new(opts);
         // test if the listen_and_accept function is working
         assert_eq!(transport.listen_and_accept().is_ok(), true);
     }

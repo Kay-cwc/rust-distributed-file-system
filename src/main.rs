@@ -11,7 +11,7 @@ fn main() {
         shakehands: |_| Ok(()),
         decoder: Box::new(DefaultDecoder {})
     };
-    let tcp_transport = tcp::new_tcp_transport(opts);
+    let tcp_transport = tcp::TCPTransport::new(opts);
 
     tcp_transport.listen_and_accept().unwrap();
 
