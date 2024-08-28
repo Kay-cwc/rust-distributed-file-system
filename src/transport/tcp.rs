@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, TryReserveError};
 use std::fmt::Error;
-use std::io::Read;
+use std::sync::mpsc::{channel, Receiver, RecvError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::{io, thread};
 use std::net::{SocketAddr, TcpListener, TcpStream, Shutdown};
 
 use crate::transport::message::Message;
@@ -10,6 +10,7 @@ use crate::transport::transport::Transport;
 
 use super::encoding::Decoder;
 use super::handshake::ErrInvalidHandshake;
+use super::transport::Peer;
 
 /**
  * the peer struct is responsible for the connection between nodes
@@ -33,6 +34,13 @@ impl TCPPeer {
             outbound,
         }
     }
+
+}
+
+impl Peer for TCPPeer {
+    fn close(&self) -> Result<(), io::Error> {
+        self.conn.shutdown(Shutdown::Both)
+    }
 }
 
 pub type HandShakeFn = fn(peer: &TCPPeer) -> Result<(), ErrInvalidHandshake>;
@@ -55,6 +63,8 @@ pub struct TCPTransportOpts {
 pub struct TCPTransport {
     pub opts: TCPTransportOpts,
     listener: TcpListener,
+    sender: Mutex<Sender<Message>>,
+    receiver: Mutex<Receiver<Message>>,
 
     peers: Mutex<HashMap<SocketAddr, TCPPeer>>,
 }
@@ -67,9 +77,12 @@ impl TCPTransport {
      */
     pub fn new(opts: TCPTransportOpts) -> Arc<TCPTransport> {
         let listener = TcpListener::bind(&opts.listen_addr).unwrap();
+        let (sender, receiver): (Sender<Message>, Receiver<Message>) = channel();
         Arc::new(TCPTransport {
             opts,
             listener,
+            sender: Mutex::new(sender),
+            receiver: Mutex::new(receiver),
             peers: Mutex::new(HashMap::new()),
         })
     }
@@ -120,15 +133,18 @@ impl TCPTransport {
                     break;
                 }
             }
+
+            println!("Sending message to channel");
+
+            // send the message to the channel
+            let sender = self.sender.lock().unwrap().clone();
+            println!("Sender: {:?}", sender);
+            sender.send(msg).unwrap(); // FIXME: handle error
+            println!("Message sent to channel");
         }
     }
 }
 
-impl AsRef<TCPTransport> for TCPTransport {
-    fn as_ref(&self) -> &TCPTransport {
-        self
-    }
-}
 
 impl Transport for TCPTransport {
     fn listen_and_accept(self: Arc<Self>) -> Result<(), Error> {
@@ -137,6 +153,12 @@ impl Transport for TCPTransport {
         });
 
         Ok(())
+    }
+
+    fn consume(self: Arc<Self>) -> Result<Message, RecvError> {
+        let rv = self.receiver.lock().unwrap().recv();
+        println!("Received message from channel");
+        rv
     }
 }
 

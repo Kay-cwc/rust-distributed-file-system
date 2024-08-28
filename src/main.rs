@@ -13,9 +13,12 @@ fn main() {
     };
     let tcp_transport = tcp::TCPTransport::new(opts);
 
-    tcp_transport.listen_and_accept().unwrap();
+    tcp_transport.clone().listen_and_accept().unwrap();
 
     loop {
         // keep the main thread alive
+        println!("[server] waiting for msg...");
+        let msg = tcp_transport.clone().consume().unwrap();
+        println!("[server] received msg: {:?}", msg);
     }
 }
