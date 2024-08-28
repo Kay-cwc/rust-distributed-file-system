@@ -2,7 +2,7 @@ pub mod transport;
 
 use transport::encoding::DefaultDecoder;
 use transport::tcp::{self, TCPTransportOpts};
-use transport::p2p::P2P;
+use transport::transport::Transport;
 
 fn main() {
     // FIXME: this is for testing only. should be updated later

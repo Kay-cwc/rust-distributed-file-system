@@ -6,7 +6,7 @@ use std::thread;
 use std::net::{SocketAddr, TcpListener, TcpStream, Shutdown};
 
 use crate::transport::message::Message;
-use crate::transport::p2p::P2P;
+use crate::transport::transport::Transport;
 
 use super::encoding::Decoder;
 use super::handshake::ErrInvalidHandshake;
@@ -130,7 +130,7 @@ impl AsRef<TCPTransport> for TCPTransport {
     }
 }
 
-impl P2P for TCPTransport {
+impl Transport for TCPTransport {
     fn listen_and_accept(self: Arc<Self>) -> Result<(), Error> {
         thread::spawn(move || {
             self.start_accept();
