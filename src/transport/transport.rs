@@ -1,10 +1,21 @@
 use std::{
-    fmt::Error, io, sync::{
+    fmt::{self, Display, Error, Formatter}, io, sync::{
         mpsc::RecvError, Arc
     }
 };
 
 use super::message::Message;
+
+#[derive(Debug)]
+pub struct ErrConnClose;
+
+impl Display for ErrConnClose {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "connection closed")
+    }
+}
+
+impl std::error::Error for ErrConnClose {}
 
 pub trait Peer {
     fn close(&self) -> Result<(), io::Error>;

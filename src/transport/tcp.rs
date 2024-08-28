@@ -10,7 +10,7 @@ use crate::transport::transport::Transport;
 
 use super::encoding::Decoder;
 use super::handshake::ErrInvalidHandshake;
-use super::transport::Peer;
+use super::transport::{ErrConnClose, Peer};
 
 /**
  * the peer struct is responsible for the connection between nodes
@@ -43,7 +43,9 @@ impl Peer for TCPPeer {
     }
 }
 
+// need to determine whether should put it here on in the transport.rs
 pub type HandShakeFn = fn(peer: &TCPPeer) -> Result<(), ErrInvalidHandshake>;
+pub type OnPeerFn = fn(peer: &TCPPeer) -> Result<(), ErrConnClose>;
 
 /**
  * defines the configuration of the tcp transport layer
@@ -55,6 +57,7 @@ pub struct TCPTransportOpts {
      */
     pub shakehands: HandShakeFn,
     pub decoder: Box<dyn Decoder + Send + Sync>,
+    pub on_peer: OnPeerFn,
 }
 
 /**
@@ -119,6 +122,16 @@ impl TCPTransport {
             },
         };
 
+        // call the on_peer function
+        match (self.opts.on_peer)(&peer) {
+            Ok(_) => println!("Peer connected"),
+            Err(_) => {
+                println!("Error on peer");
+                peer.conn.shutdown(Shutdown::Both).unwrap();
+                return;
+            },
+        }
+
         // self.peers.lock().unwrap().insert(peer.conn.peer_addr().unwrap(), peer);
 
         // read from the connection
@@ -138,9 +151,7 @@ impl TCPTransport {
 
             // send the message to the channel
             let sender = self.sender.lock().unwrap().clone();
-            println!("Sender: {:?}", sender);
             sender.send(msg).unwrap(); // FIXME: handle error
-            println!("Message sent to channel");
         }
     }
 }
@@ -176,7 +187,8 @@ mod tests {
         let opts = TCPTransportOpts {
             listen_addr: addr.clone(),
             shakehands: |_| Ok(()),
-            decoder: Box::new(DefaultDecoder {})
+            decoder: Box::new(DefaultDecoder {}),
+            on_peer: |_| { Ok(())}
         };
         let transport = TCPTransport::new(opts);
         assert_eq!(transport.opts.listen_addr, addr);
@@ -188,7 +200,8 @@ mod tests {
         let opts = TCPTransportOpts {
             listen_addr: addr.clone(),
             shakehands: |_| Ok(()),
-            decoder: Box::new(DefaultDecoder {})
+            decoder: Box::new(DefaultDecoder {}),
+            on_peer: |_| { Ok(()) }
         };
 
         let transport = TCPTransport::new(opts);
