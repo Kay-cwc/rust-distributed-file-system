@@ -6,6 +6,7 @@ use std::{
 
 use super::message::Message;
 
+/** an error type for connection close */
 #[derive(Debug)]
 pub struct ErrConnClose;
 
@@ -17,12 +18,15 @@ impl Display for ErrConnClose {
 
 impl std::error::Error for ErrConnClose {}
 
+/**  a generic interface for peer */
 pub trait Peer {
     fn close(&self) -> Result<(), io::Error>;
 }
 
-// a top level interface for the transport lar.
-// should be implemented by all transport layer
+/** 
+    a top level interface for the transport lar.
+    should be implemented by all transport layer
+*/
 pub trait Transport {
     // fn Addr() -> String;
     // fn Dial(v: String) -> void;

@@ -1,8 +1,11 @@
+extern crate crypto;
+
 pub mod transport;
+pub mod store;
 
 use transport::encoding::DefaultDecoder;
 use transport::tcp::{self, TCPTransportOpts};
-use transport::transport::{ErrConnClose, Peer, Transport};
+use transport::transport::{ErrConnClose, Transport};
 
 fn main() {
     // FIXME: this is for testing only. should be updated later
