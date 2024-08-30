@@ -6,7 +6,6 @@ pub fn cas_path_transform(s: String) -> String {
     let mut hasher = sha1::Sha1::new();
     hasher.input_str(&s);
     let hash_str = hasher.result_str();
-    println!("hash_str: {}", hash_str);
 
     let slice_len = hash_str.len() / CAS_BLOCK_SIZE;
     let mut path = vec![String::new(); slice_len];
@@ -18,6 +17,13 @@ pub fn cas_path_transform(s: String) -> String {
     }
 
     path.join("/")
+}
+
+pub fn filename_transform(s: String) -> String {
+    let mut hasher = sha1::Sha1::new();
+    hasher.input_str(&s);
+    
+    hasher.result_str()
 }
 
 pub fn get_file_hash(buf: &[u8]) -> String {

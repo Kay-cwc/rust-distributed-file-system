@@ -11,7 +11,7 @@ pub mod store {
         /** for configuring where the file is stored */
         root_dir: String,
         /** for handling how the file path should be transformed */
-        path_transform: PathTransformFn
+        filename_transform: PathTransformFn
     }
 
     impl Store {
@@ -21,6 +21,8 @@ pub mod store {
             }
         }
 
+        // pub fn read_stream(&self, key: String) 
+
         /** 
          * Write a stream to the store
          * @param key: the key to store the stream
@@ -29,21 +31,15 @@ pub mod store {
         pub fn write_stream(&self, key: String, r: &mut dyn io::Read) -> Result<(), io::Error> {
             // house keeping
             // create the directory if it doesn't exist
-            let mut pathname = (self.opts.path_transform)(key);
-            pathname = format!("{}/{}", self.opts.root_dir, pathname);
-            fs::create_dir_all(&pathname).unwrap();
-
-            // create a hash to represent the filename. then create the file for storing the stream later
-            let mut buf = Vec::new();
-            io::copy(r, &mut buf).unwrap();
-            let filename = get_file_hash(&buf);
-            let fullpath = format!("{}/{}", pathname, filename);
+            fs::create_dir_all(&self.opts.root_dir).unwrap();
+            let mut filename = (self.opts.filename_transform)(key);
+            filename = format!("{}/{}", self.opts.root_dir, filename);
             
-            let mut w = fs::File::create(&fullpath).unwrap();
+            let mut w = fs::File::create(&filename).unwrap();
             
             // write the stream to the file
             let bytes_written = io::copy(r, &mut w)?;
-            println!("written {} bytes to {}", bytes_written, fullpath);
+            println!("written {} bytes to {}", bytes_written, filename);
 
             Ok(())
         }
@@ -54,13 +50,13 @@ pub mod store {
 
     #[cfg(test)]
     mod tests {
-        use crate::store::hashlib::cas_path_transform;
+        use crate::store::hashlib::filename_transform;
 
         use super::*;
 
         #[test]
         fn test_store_write_stream() {
-            let store = Store { opts: StoreOpts { path_transform: |s| s, root_dir: "test".to_string() } };
+            let store = Store { opts: StoreOpts { filename_transform: |s| s, root_dir: "test".to_string() } };
             let key = String::from  ("test");
             let mut r = io::Cursor::new(vec![1, 2, 3, 4]);
             let res = store.write_stream(key, &mut r);
@@ -69,7 +65,7 @@ pub mod store {
 
         #[test]
         fn test_store_write_stream_with_path_transform() {
-            let store = Store { opts: StoreOpts { path_transform: cas_path_transform, root_dir: "test".to_string() } };
+            let store = Store { opts: StoreOpts { filename_transform: filename_transform, root_dir: "test".to_string() } };
             let key = String::from("test");
             let mut r = io::Cursor::new(vec![1, 2, 3, 4]);
             let res = store.write_stream(key, &mut r);
