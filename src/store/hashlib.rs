@@ -2,6 +2,9 @@ use crypto::{md5, sha1, digest::Digest};
 
 const CAS_BLOCK_SIZE: usize = 5;
 
+/// Transform a string into a cascading path  
+/// This function hash the input string and split the hash into 5 characters chunks
+/// and join them with a slash
 pub fn cas_path_transform(s: String) -> String {
     let mut hasher = sha1::Sha1::new();
     hasher.input_str(&s);
