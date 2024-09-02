@@ -43,6 +43,7 @@ pub mod file_server {
             loop {
                 // break the loop if we receive a shutdown message
                 if let Ok(true) = self.shutdown_chan.1.lock().unwrap().try_recv() {
+                    self.transport.clone().close()?;
                     break;
                 }
 
@@ -56,7 +57,7 @@ pub mod file_server {
                         }
                     }
                 };
-
+                
                 println!("Received message: {:?}", msg);   
             }
 

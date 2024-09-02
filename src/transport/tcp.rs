@@ -170,6 +170,11 @@ impl Transport for TCPTransport {
     fn consume(self: Arc<Self>) -> Result<Message, TryRecvError> {
         self.msg_chan.1.lock().unwrap().try_recv()
     }
+
+    fn close(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
+        // nothing to do here
+        Ok(())
+    }
 }
 
 // section: tests

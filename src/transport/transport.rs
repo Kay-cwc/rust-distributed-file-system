@@ -28,8 +28,12 @@ pub trait Peer {
     should be implemented by all transport layer
 */
 pub trait Transport {
+    /// return the local address of the listener
     fn addr(self: Arc<Self>) -> String;
-    // fn Dial(v: String) -> void;
+    /// start listening and accepting incoming connections
     fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>;
+    /// to receive a message from the transport layer
     fn consume(self: Arc<Self>) -> Result<Message, TryRecvError>;
+    /// clean up
+    fn close(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>; 
 }
