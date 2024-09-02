@@ -65,8 +65,7 @@ pub struct TCPTransportOpts {
 pub struct TCPTransport {
     pub opts: TCPTransportOpts,
     listener: TcpListener,
-    sender: Mutex<Sender<Message>>,
-    receiver: Mutex<Receiver<Message>>,
+    msg_chan: (Mutex<Sender<Message>>, Mutex<Receiver<Message>>),
 
     peers: Mutex<HashMap<SocketAddr, TCPPeer>>,
 }
@@ -79,12 +78,11 @@ impl TCPTransport {
      */
     pub fn new(opts: TCPTransportOpts) -> Arc<TCPTransport> {
         let listener = TcpListener::bind(&opts.listen_addr).unwrap();
-        let (sender, receiver): (Sender<Message>, Receiver<Message>) = channel();
+        let channel: (Sender<Message>, Receiver<Message>) = channel();
         Arc::new(TCPTransport {
             opts,
             listener,
-            sender: Mutex::new(sender),
-            receiver: Mutex::new(receiver),
+            msg_chan: (Mutex::new(channel.0), Mutex::new(channel.1)),
             peers: Mutex::new(HashMap::new()),
         })
     }
@@ -149,7 +147,7 @@ impl TCPTransport {
             println!("Sending message to channel");
 
             // send the message to the channel
-            let sender = self.sender.lock().unwrap().clone();
+            let sender = self.msg_chan.0.lock().unwrap().clone();
             sender.send(msg).unwrap(); // FIXME: handle error
         }
     }
@@ -170,7 +168,7 @@ impl Transport for TCPTransport {
     }
 
     fn consume(self: Arc<Self>) -> Result<Message, TryRecvError> {
-        self.receiver.lock().unwrap().try_recv()
+        self.msg_chan.1.lock().unwrap().try_recv()
     }
 }
 
