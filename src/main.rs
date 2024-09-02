@@ -1,30 +1,43 @@
 extern crate crypto;
 
 pub mod transport;
+pub mod server;
 pub mod store;
 
+use server::file_server::{FileServer, FileServerOpts};
 use transport::encoding::DefaultDecoder;
 use transport::tcp::{self, TCPTransportOpts};
-use transport::transport::{ErrConnClose, Transport};
+// use transport::transport::{};
 
 fn main() {
-    // FIXME: this is for testing only. should be updated later
+    // create the transport layer
     let opts = TCPTransportOpts {
         listen_addr: String::from("localhost:3000"),
         shakehands: |_| Ok(()),
         decoder: Box::new(DefaultDecoder {}),
         on_peer: |_peer| {
-            return Err(ErrConnClose);
+            Ok(())
         }
     };
     let tcp_transport = tcp::TCPTransport::new(opts);
 
-    tcp_transport.clone().listen_and_accept().unwrap();
+    let file_server_opts = FileServerOpts {
+        listen_addr: String::from("localhost:3000"),
+        store_opts: store::store::StoreOpts {
+            root_dir: String::from("store"),
+            filename_transform: store::hashlib::filename_transform,
+        },
+        transport: tcp_transport.clone(),
+    };
+    let server = FileServer::new(file_server_opts);
+    server.start().unwrap();
 
-    println!("[server] waiting for msg...");
-    loop {
-        // keep the main thread alive
-        let msg = tcp_transport.clone().consume().unwrap();
-        println!("[server] received msg: {:?}", msg);
-    }
+    // tcp_transport.clone().listen_and_accept().unwrap();
+
+    // println!("[server] waiting for msg...");
+    // loop {
+    //     // keep the main thread alive
+    //     let msg = tcp_transport.clone().consume().unwrap();
+    //     println!("[server] received msg: {:?}", msg);
+    // }
 }

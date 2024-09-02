@@ -30,6 +30,6 @@ pub trait Peer {
 pub trait Transport {
     // fn Addr() -> String;
     // fn Dial(v: String) -> void;
-    fn listen_and_accept(self: Arc<Self>) -> Result<(), Error>;
+    fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>;
     fn consume(self: Arc<Self>) -> Result<Message, RecvError>;
 }

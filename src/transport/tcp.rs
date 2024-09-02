@@ -1,6 +1,6 @@
-use std::collections::{HashMap, TryReserveError};
+use std::collections::HashMap;
 use std::fmt::Error;
-use std::sync::mpsc::{channel, Receiver, RecvError, Sender, TryRecvError};
+use std::sync::mpsc::{channel, Receiver, RecvError, Sender};
 use std::sync::{Arc, Mutex};
 use std::{io, thread};
 use std::net::{SocketAddr, TcpListener, TcpStream, Shutdown};
@@ -158,7 +158,7 @@ impl TCPTransport {
 
 
 impl Transport for TCPTransport {
-    fn listen_and_accept(self: Arc<Self>) -> Result<(), Error> {
+    fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
         thread::spawn(move || {
             self.start_accept();
         });

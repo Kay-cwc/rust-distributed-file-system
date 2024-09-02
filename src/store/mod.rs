@@ -7,10 +7,10 @@ pub mod store {
 
     pub struct StoreOpts {
         /// for configuring where the file is stored
-        root_dir: String,
+        pub root_dir: String,
         /// for handling how the filename should be transformed. 
         /// @see hashlib::filename_transform for an example of transforming the filename from a key to a sha1 hash
-        filename_transform: PathTransformFn
+        pub filename_transform: PathTransformFn
     }
 
     impl Store {
