@@ -4,6 +4,10 @@ pub mod transport;
 pub mod server;
 pub mod store;
 
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+
 use server::file_server::{FileServer, FileServerOpts};
 use transport::encoding::DefaultDecoder;
 use transport::tcp::{self, TCPTransportOpts};
@@ -15,6 +19,7 @@ fn main() {
         listen_addr: String::from("localhost:3000"),
         shakehands: |_| Ok(()),
         decoder: Box::new(DefaultDecoder {}),
+        // FIXME: implement on peer fn
         on_peer: |_peer| {
             Ok(())
         }
@@ -30,7 +35,17 @@ fn main() {
         transport: tcp_transport.clone(),
     };
     let server = FileServer::new(file_server_opts);
-    server.start().unwrap();
+
+    thread::scope(|s| {
+        s.spawn(|| {
+            thread::sleep(Duration::from_secs(10));
+            println!("Shutting down server...");
+            server.clone().shutdown();
+        });
+        s.spawn(|| {
+            server.clone().start().unwrap();
+        }); 
+    });
 
     // tcp_transport.clone().listen_and_accept().unwrap();
 

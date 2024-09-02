@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::Error;
-use std::sync::mpsc::{channel, Receiver, RecvError, Sender};
+use std::sync::mpsc::{channel, Receiver, RecvError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::{io, thread};
 use std::net::{SocketAddr, TcpListener, TcpStream, Shutdown};
@@ -158,6 +157,10 @@ impl TCPTransport {
 
 
 impl Transport for TCPTransport {
+    fn addr(self: Arc<Self>) -> String {
+        self.opts.listen_addr.clone()
+    }
+
     fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
         thread::spawn(move || {
             self.start_accept();
@@ -166,10 +169,8 @@ impl Transport for TCPTransport {
         Ok(())
     }
 
-    fn consume(self: Arc<Self>) -> Result<Message, RecvError> {
-        let rv = self.receiver.lock().unwrap().recv();
-        println!("Received message from channel");
-        rv
+    fn consume(self: Arc<Self>) -> Result<Message, TryRecvError> {
+        self.receiver.lock().unwrap().try_recv()
     }
 }
 
