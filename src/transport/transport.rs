@@ -1,5 +1,5 @@
 use std::{
-    fmt::{self, Display, Error, Formatter}, io, sync::{
+    fmt::{self, Display, Error, Formatter}, io, net::SocketAddr, sync::{
         mpsc::{RecvError, TryRecvError}, Arc
     }
 };
@@ -30,10 +30,12 @@ pub trait Peer {
 pub trait Transport {
     /// return the local address of the listener
     fn addr(self: Arc<Self>) -> String;
-    /// start listening and accepting incoming connections
-    fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>;
-    /// to receive a message from the transport layer
-    fn consume(self: Arc<Self>) -> Result<Message, TryRecvError>;
     /// clean up
     fn close(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>; 
+    /// to receive a message from the transport layer
+    fn consume(self: Arc<Self>) -> Result<Message, TryRecvError>;
+    /// start listening and accepting incoming connections
+    fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>;
+    /// dial a remote address
+    fn dial(self: Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>>;
 }

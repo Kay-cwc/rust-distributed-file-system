@@ -4,6 +4,7 @@ pub mod transport;
 pub mod server;
 pub mod store;
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -33,6 +34,7 @@ fn main() {
             filename_transform: store::hashlib::filename_transform,
         },
         transport: tcp_transport.clone(),
+        bootstrap_node: vec![SocketAddr::from(([127, 0, 0, 1], 4000))],
     };
     let server = FileServer::new(file_server_opts);
 
@@ -46,13 +48,4 @@ fn main() {
             server.clone().start().unwrap();
         }); 
     });
-
-    // tcp_transport.clone().listen_and_accept().unwrap();
-
-    // println!("[server] waiting for msg...");
-    // loop {
-    //     // keep the main thread alive
-    //     let msg = tcp_transport.clone().consume().unwrap();
-    //     println!("[server] received msg: {:?}", msg);
-    // }
 }

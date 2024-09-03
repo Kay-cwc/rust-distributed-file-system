@@ -73,9 +73,7 @@ pub struct TCPTransport {
 // section: implement the transport layer
 
 impl TCPTransport {
-    /**
-     * create a new tcp transport layer
-     */
+    /// create a new tcp transport layer
     pub fn new(opts: TCPTransportOpts) -> Arc<TCPTransport> {
         let listener = TcpListener::bind(&opts.listen_addr).unwrap();
         let channel: (Sender<Message>, Receiver<Message>) = channel();
@@ -87,15 +85,13 @@ impl TCPTransport {
         })
     }
 
-    /**
-     * create a loop to accept incoming connections
-     */
-    pub fn start_accept(&self) {
+    /// create a blocking loop to accept incoming connections
+    fn start_accept(&self) {
         for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
                     println!("New connection: {}", stream.peer_addr().unwrap());
-                    self.handle_conn(stream);
+                    self.handle_conn(stream, false);
                 }
                 Err(e) => {
                     println!("Error: {}", e);
@@ -104,12 +100,10 @@ impl TCPTransport {
         }
     }
 
-    /**
-     handle_conn is responsible for handling the connection between nodes
-     it handles the handshake and store the peer in the peers list
-     */
-    fn handle_conn(&self, conn: TcpStream) {
-        let mut peer = TCPPeer::new(conn, true);
+    /// tcp layer for handling after the connection is established between nodes
+    /// it handles the handshake and store the peer in the peers list
+    fn handle_conn(&self, conn: TcpStream, outbound: bool) {
+        let mut peer = TCPPeer::new(conn, outbound); // inbound connection
 
         match (self.opts.shakehands)(&peer) {
             Ok(_) => println!("Handshake successful"),
@@ -174,6 +168,19 @@ impl Transport for TCPTransport {
     fn close(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
         // nothing to do here
         Ok(())
+    }
+
+    fn dial(self: Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
+        match TcpStream::connect(addr) {
+            Ok(conn) => {
+                self.handle_conn(conn, true);
+                Ok(())
+            },
+            Err(e) => {
+                println!("Error connecting to {}: {}", addr, e);
+                Err(Box::new(e))
+            }
+        }
     }
 }
 
