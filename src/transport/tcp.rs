@@ -1,15 +1,14 @@
 use std::collections::HashMap;
-use std::sync::mpsc::{channel, Receiver, RecvError, Sender, TryRecvError};
+use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
-use std::{io, thread};
+use std::{boxed, io, thread};
 use std::net::{SocketAddr, TcpListener, TcpStream, Shutdown};
 
 use crate::transport::message::Message;
 use crate::transport::transport::Transport;
 
 use super::encoding::Decoder;
-use super::handshake::ErrInvalidHandshake;
-use super::transport::{ErrConnClose, Peer};
+use super::transport::{HandShakeFn, OnPeerFn, PeerLike};
 
 /**
  * the peer struct is responsible for the connection between nodes
@@ -36,27 +35,35 @@ impl TCPPeer {
 
 }
 
-impl Peer for TCPPeer {
+impl PeerLike for TCPPeer {
+    fn addr(&self) -> SocketAddr {
+        self.conn.peer_addr().unwrap()
+    }
     fn close(&self) -> Result<(), io::Error> {
         self.conn.shutdown(Shutdown::Both)
     }
 }
-
-// need to determine whether should put it here on in the transport.rs
-pub type HandShakeFn = fn(peer: &TCPPeer) -> Result<(), ErrInvalidHandshake>;
-pub type OnPeerFn = fn(peer: &TCPPeer) -> Result<(), ErrConnClose>;
 
 /**
  * defines the configuration of the tcp transport layer
  */
 pub struct TCPTransportOpts {
     pub listen_addr: String,
-    /**
-     * allow the handshake function to be passed from the constructor
-     */
-    pub shakehands: HandShakeFn,
+    /// allow the handshake function to be passed from the constructor
+    pub shakehands: Option<HandShakeFn>,
     pub decoder: Box<dyn Decoder + Send + Sync>,
-    pub on_peer: OnPeerFn,
+    on_peer: Option<OnPeerFn>,
+}
+
+impl TCPTransportOpts {
+    pub fn new(listen_addr: String, decoder: Box<dyn Decoder + Send + Sync>) -> TCPTransportOpts {
+        TCPTransportOpts {
+            listen_addr,
+            shakehands: Option::None,
+            decoder,
+            on_peer: Option::None,
+        }
+    }
 }
 
 /**
@@ -85,6 +92,10 @@ impl TCPTransport {
         })
     }
 
+    pub fn on_peer(&mut self, on_peer: OnPeerFn) {
+        self.opts.on_peer = Some(on_peer);
+    }
+
     /// create a blocking loop to accept incoming connections
     fn start_accept(&self) {
         for stream in self.listener.incoming() {
@@ -103,32 +114,52 @@ impl TCPTransport {
     /// tcp layer for handling after the connection is established between nodes
     /// it handles the handshake and store the peer in the peers list
     fn handle_conn(&self, conn: TcpStream, outbound: bool) {
-        let mut peer = TCPPeer::new(conn, outbound); // inbound connection
+        let peer = TCPPeer::new(conn.try_clone().unwrap(), outbound); // inbound connection
+        let peerlike: Box<dyn PeerLike> = Box::new(TCPPeer::new(conn.try_clone().unwrap(), outbound));
 
-        match (self.opts.shakehands)(&peer) {
-            Ok(_) => println!("Handshake with {} successful", peer.conn.peer_addr().unwrap()),
-            Err(_) => {
-                peer.conn.shutdown(Shutdown::Both).unwrap();
-                return;
+        // perform the handshake
+        match self.opts.shakehands {
+            Some(shakehands) => {
+                match shakehands(&peerlike) {
+                    Ok(_) => println!("Handshake with {} successful", peerlike.addr()),
+                    Err(_) => {
+                        peerlike.close().unwrap();
+                        return;
+                    },
+                };
             },
-        };
-
-        // call the on_peer function
-        match (self.opts.on_peer)(&peer) {
-            Ok(_) => println!("Peer {} connected", peer.conn.peer_addr().unwrap()),
-            Err(_) => {
-                println!("[Error] Peer {} failed to connect", peer.conn.peer_addr().unwrap());
-                peer.conn.shutdown(Shutdown::Both).unwrap();
-                return;
-            },
+            None => {
+                println!("No handshake function provided");
+            }
         }
 
-        // self.peers.lock().unwrap().insert(peer.conn.peer_addr().unwrap(), peer);
+        // call the on_peer function
+        match self.opts.on_peer {
+            Some(on_peer) => {
+                match on_peer(&peerlike) {
+                    Ok(_) => {
+                        println!("Peer {} connected", peerlike.addr());
+                        // self.peers.lock().unwrap().insert(peerlike.addr(), peer);
+                    },
+                    Err(_) => {
+                        println!("[Error] Peer {} failed to connect", peerlike.addr());
+                        peerlike.close().unwrap();
+                        return;
+                    },
+                }
+            },
+            None => {
+                println!("No on_peer function provided");
+            }
+        }
+
+        // add the peer to the peers list
+        self.peers.lock().unwrap().insert(peerlike.addr(), peer);
 
         // read from the connection
         loop {
-            let mut msg = Message::new(peer.conn.peer_addr().unwrap());
-            match self.opts.decoder.decode(&mut peer.conn, &mut msg) {
+            let mut msg = Message::new(peerlike.addr());
+            match self.opts.decoder.decode(&mut conn.try_clone().unwrap(), &mut msg) {
                 Ok(_) => {
                     println!("Received data from {}: {}", msg.from, String::from_utf8_lossy(&msg.payload));
                 }
@@ -197,9 +228,9 @@ mod tests {
         let addr = String::from("localhost:3000");
         let opts = TCPTransportOpts {
             listen_addr: addr.clone(),
-            shakehands: |_| Ok(()),
+            shakehands: Option::None,
             decoder: Box::new(DefaultDecoder {}),
-            on_peer: |_| { Ok(())}
+            on_peer: Option::None
         };
         let transport = TCPTransport::new(opts);
         assert_eq!(transport.opts.listen_addr, addr);
@@ -210,9 +241,9 @@ mod tests {
         let addr = String::from("localhost:3000");
         let opts = TCPTransportOpts {
             listen_addr: addr.clone(),
-            shakehands: |_| Ok(()),
+            shakehands: Option::None,
             decoder: Box::new(DefaultDecoder {}),
-            on_peer: |_| { Ok(()) }
+            on_peer: Option::None,
         };
 
         let transport = TCPTransport::new(opts);

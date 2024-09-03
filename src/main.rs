@@ -15,15 +15,7 @@ use transport::tcp::{self, TCPTransportOpts};
 
 fn make_server(listen_addr: String, nodes: Vec<SocketAddr>) -> Arc<FileServer> {
     // create the transport layer
-    let opts = TCPTransportOpts {
-        listen_addr: listen_addr.clone(),
-        shakehands: |_| Ok(()),
-        decoder: Box::new(DefaultDecoder {}),
-        // FIXME: implement on peer fn
-        on_peer: |_peer| {
-            Ok(())
-        }
-    };
+    let opts = TCPTransportOpts::new(listen_addr.clone(), Box::new(DefaultDecoder {}));
     let tcp_transport = tcp::TCPTransport::new(opts);
     
     let file_server_opts = FileServerOpts {
@@ -34,8 +26,10 @@ fn make_server(listen_addr: String, nodes: Vec<SocketAddr>) -> Arc<FileServer> {
         transport: tcp_transport.clone(),
         bootstrap_node: nodes,
     };
+
+    let server = FileServer::new(file_server_opts);
     
-    FileServer::new(file_server_opts)
+    server
 }
 
 fn main() {

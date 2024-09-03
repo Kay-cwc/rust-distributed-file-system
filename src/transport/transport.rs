@@ -1,10 +1,12 @@
 use std::{
-    fmt::{self, Display, Error, Formatter}, io, net::SocketAddr, sync::{
-        mpsc::{RecvError, TryRecvError}, Arc
+    fmt::{self, Display, Formatter}, 
+    io, net::SocketAddr, 
+    sync::{
+        mpsc::TryRecvError, Arc
     }
 };
 
-use super::message::Message;
+use super::{handshake::ErrInvalidHandshake, message::Message};
 
 /** an error type for connection close */
 #[derive(Debug)]
@@ -18,15 +20,18 @@ impl Display for ErrConnClose {
 
 impl std::error::Error for ErrConnClose {}
 
-/**  a generic interface for peer */
-pub trait Peer {
+/// a generic interface for peer
+pub trait PeerLike {
+    fn addr(&self) -> SocketAddr;
     fn close(&self) -> Result<(), io::Error>;
+    // fn send(&self, msg: ) -> Result<(), io::Error>;
 }
 
-/** 
-    a top level interface for the transport lar.
-    should be implemented by all transport layer
-*/
+pub type HandShakeFn = fn(peer: &Box<dyn PeerLike>) -> Result<(), ErrInvalidHandshake>;
+pub type OnPeerFn = fn(peer: &Box<dyn PeerLike>) -> Result<(), ErrConnClose>;
+
+/// a top level interface for the transport layer  
+/// should be implemented by all transport layer
 pub trait Transport {
     /// return the local address of the listener
     fn addr(self: Arc<Self>) -> String;

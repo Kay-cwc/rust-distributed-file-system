@@ -1,9 +1,9 @@
 pub mod file_server {
-    use std::{net::SocketAddr, sync::{mpsc::{Receiver, Sender, TryRecvError}, Arc, Mutex}, thread};
+    use std::{collections::HashMap, net::SocketAddr, sync::{mpsc::{Receiver, Sender, TryRecvError}, Arc, Mutex}, thread};
 
     use crate::{
         store::store::{Store, StoreOpts}, 
-        transport::transport::Transport,
+        transport::transport::{PeerLike, Transport},
     };
 
     pub struct FileServerOpts {
@@ -18,6 +18,7 @@ pub mod file_server {
         store: Store,
         shutdown_chan: (Mutex<Sender<bool>>, Mutex<Receiver<bool>>),
         bootstrap_node: Vec<SocketAddr>,
+        peers: Mutex<HashMap<SocketAddr, Arc<dyn PeerLike + Sync + Send>>>
     }
 
     impl FileServer {
@@ -31,6 +32,7 @@ pub mod file_server {
                 store,
                 shutdown_chan: (Mutex::new(shutdown_chan_.0), Mutex::new(shutdown_chan_.1)),
                 bootstrap_node: opts.bootstrap_node,
+                peers: Mutex::new(HashMap::new())
             })
         }
 
