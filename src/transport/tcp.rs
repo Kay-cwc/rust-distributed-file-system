@@ -106,7 +106,7 @@ impl TCPTransport {
         let mut peer = TCPPeer::new(conn, outbound); // inbound connection
 
         match (self.opts.shakehands)(&peer) {
-            Ok(_) => println!("Handshake successful"),
+            Ok(_) => println!("Handshake with {} successful", peer.conn.peer_addr().unwrap()),
             Err(_) => {
                 peer.conn.shutdown(Shutdown::Both).unwrap();
                 return;
@@ -115,9 +115,9 @@ impl TCPTransport {
 
         // call the on_peer function
         match (self.opts.on_peer)(&peer) {
-            Ok(_) => println!("Peer connected"),
+            Ok(_) => println!("Peer {} connected", peer.conn.peer_addr().unwrap()),
             Err(_) => {
-                println!("Error on peer");
+                println!("[Error] Peer {} failed to connect", peer.conn.peer_addr().unwrap());
                 peer.conn.shutdown(Shutdown::Both).unwrap();
                 return;
             },

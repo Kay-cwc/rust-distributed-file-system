@@ -7,8 +7,6 @@ pub mod file_server {
     };
 
     pub struct FileServerOpts {
-        // transport layer options
-        pub listen_addr: String,
         // storage options
         pub store_opts: StoreOpts,
         pub transport: Arc<dyn Transport + Send + Sync>,
@@ -39,7 +37,7 @@ pub mod file_server {
         pub fn start(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
             // start the transport layer and listen for incoming connections
             let _ = self.transport.clone().listen_and_accept();
-            println!("servere running on {}", self.transport.clone().addr());
+            println!("server running on {}", self.transport.clone().addr());
 
             // bootstrap the network
             self.bootstrap_network();
@@ -86,7 +84,6 @@ pub mod file_server {
             let len = nodes.len();
             for i in 0..len {
                 let node = nodes[i].clone();
-                println!("Bootstrapping to node: {}", node);
                 let t = self.transport.clone();
                 thread::spawn(move || {
                     t.dial(node).unwrap();
