@@ -6,6 +6,7 @@ pub mod transport;
 pub mod server;
 pub mod store;
 
+use std::io::Cursor;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::{thread, vec};
@@ -43,17 +44,28 @@ fn main() {
     let p1 = make_server("127.0.0.1:4000".to_string(), vec![SocketAddr::from(([127, 0, 0, 1], 3000))]);
 
     thread::scope(|s| {
-        s.spawn(|| {
-            thread::sleep(Duration::from_secs(30));
-            println!("Shutting down server...");
-            server.clone().shutdown();
-        });
+        // thread for server 1 (aka bootstrap node)
         s.spawn(|| {
             server.clone().start().unwrap();
         });
+        // thread for peer 1
         s.spawn(|| {
             thread::sleep(Duration::from_secs(5));
-            p1.clone().start().unwrap();
+            let p1a = p1.clone();
+            thread::spawn(move || {
+                p1.clone().start().unwrap();
+            });
+            thread::sleep(Duration::from_secs(5));
+            let key = String::from("some_test_file");
+            let r = vec![1, 2, 3, 4];
+            p1a.clone().store_data(key, &mut r.as_slice());
         });
+        // s.spawn(|| {
+        // })
+        // s.spawn(|| {
+        //     thread::sleep(Duration::from_secs(30));
+        //     println!("Shutting down server...");
+        //     server.clone().shutdown();
+        // });
     });
 }

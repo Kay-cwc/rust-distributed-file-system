@@ -27,19 +27,21 @@ impl TcpPeer {
             outbound,
         }
     }
-
 }
 
 impl PeerLike for TcpPeer {
     fn addr(&self) -> SocketAddr {
         self.conn.peer_addr().unwrap()
     }
+
     fn close(&self) -> Result<(), io::Error> {
         self.conn.shutdown(Shutdown::Both)
     }
+
     fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
         self.conn.write_all(buf)
     }
+
     fn is_outbound(&self) -> bool {
         self.outbound
     }
@@ -158,8 +160,6 @@ impl TcpTransport {
                     break;
                 }
             }
-
-            println!("Sending message to channel");
 
             // send the message to the channel
             let sender = self.msg_chan.0.lock().unwrap().clone();

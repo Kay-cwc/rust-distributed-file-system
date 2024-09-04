@@ -79,6 +79,7 @@ pub mod store {
             let mut w = fs::File::create(&filename).unwrap();
             
             // write the stream to the file
+            // FIXME: the encoding is not handled here
             let bytes_written = io::copy(r, &mut w)?;
             println!("written {} bytes to {}", bytes_written, filename);
 

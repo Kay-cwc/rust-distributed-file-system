@@ -54,6 +54,7 @@ pub mod file_server {
             server
         }
 
+        /// a blocking function to start the server
         pub fn start(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
             // start the transport layer and listen for incoming connections
             let _ = self.transport.clone().listen_and_accept();
@@ -97,7 +98,22 @@ pub mod file_server {
         /// read from a stream and store in the store  
         /// will also broadcast the data to all connected peers
         pub fn store_data(self: &Arc<Self>, key: String, r: &mut dyn io::Read) {
-            // self.store.write(key, data.as_slice()).unwrap();
+            // questionable design choice: we are reading the stream twice
+            match self.store.write(key.clone(), r) {
+                Ok(_) => {
+                    println!("Data written to store");
+                    let mut buf = Vec::new();
+                    r.read_to_end(&mut buf).unwrap();
+                    let payload = Payload {
+                        key: key.clone(),
+                        data: buf,
+                    };
+                    self.broadcast(payload);
+                },
+                Err(e) => {
+                    println!("Error writing to store: {}", e);
+                }
+            }
         }
 
         /// bootstrap the network by connecting to the bootstrap nodes
@@ -135,10 +151,12 @@ pub mod file_server {
 
         /// broadcast the payload to all connected peers  
         fn broadcast(self: &Arc<Self>, payload: Payload) {
+            println!("Broadcasting data to all peers");
             let buf = bincode::serialize(&payload).unwrap();
             let peers = self.peers.lock().unwrap();
             for (_, peer) in peers.iter() {
                 let mut p = peer.lock().unwrap();
+                println!("Sending data to {}", p.addr());
                 p.send(&buf).unwrap();
             }   
         }

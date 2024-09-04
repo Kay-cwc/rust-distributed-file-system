@@ -10,8 +10,10 @@ pub struct DefaultDecoder {}
 
 impl Decoder for DefaultDecoder {
     fn decode(&self, r: &mut dyn io::Read, msg: &mut Message) -> Result<(), io::Error> {
-        let mut buf = Vec::new();
+        let mut buf = vec![0; 1024];
+        println!("Reading from stream");
         let n = r.read(&mut buf).unwrap();
+        println!("Read {} bytes", n);
         msg.payload = buf[..n].to_vec();
         Ok(())
     }
