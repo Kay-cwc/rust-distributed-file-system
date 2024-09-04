@@ -48,7 +48,7 @@ pub mod file_server {
 
         fn register_on_peer_cb(self: &Arc<Self>) {
             let cb = Box::new(move |p: Arc<T::Peer>| {
-                println!("[server] on_peer: {}", p.addr());
+                println!("[server] {} on_peer: {}", if p.is_outbound() { "outbound" } else { "inbound" },  p.addr());
             });
 
             self.transport.clone().register_on_peer(cb);

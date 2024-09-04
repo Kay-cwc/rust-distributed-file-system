@@ -40,6 +40,9 @@ impl PeerLike for TcpPeer {
     fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
         self.conn.write_all(buf)
     }
+    fn is_outbound(&self) -> bool {
+        self.outbound
+    }
 }
 
 /// defines the configuration of the tcp transport layer
