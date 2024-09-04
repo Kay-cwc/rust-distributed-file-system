@@ -50,5 +50,6 @@ pub trait Transport: Send + Sync + 'static {
     /// register a callback function to be called when a new peer is connected
     /// the returned boolean should indicate if the peer has been handled successfully. 
     /// if false, the peer will be closed and removed from the peers list
+    /// TODO: can abstract the callback function?
     fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<Self::Peer>) -> bool + Sync + Send + 'static>);
 }

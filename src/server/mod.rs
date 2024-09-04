@@ -46,21 +46,6 @@ pub mod file_server {
             server
         }
 
-        fn register_on_peer_cb(self: &Arc<Self>) {
-            // callback fn when a new peer is connected
-            let cb = {
-                let cloned_self = self.clone();
-                move |p: Arc<T::Peer>| {
-                    println!("[server] {} on_peer: {}", if p.is_outbound() { "outbound" } else { "inbound" },  p.addr());
-                    cloned_self.peers.lock().unwrap().insert(p.addr(), p);
-
-                    true
-                }
-            };
-
-            self.transport.clone().register_on_peer(Box::new(cb));
-        }
-
         pub fn start(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
             // start the transport layer and listen for incoming connections
             let _ = self.transport.clone().listen_and_accept();
@@ -116,6 +101,21 @@ pub mod file_server {
                     t.dial(node).unwrap();
                 });
             }
+        }
+
+        fn register_on_peer_cb(self: &Arc<Self>) {
+            // callback fn when a new peer is connected
+            let cb = {
+                let cloned_self = self.clone();
+                move |p: Arc<T::Peer>| {
+                    println!("[server] {} on_peer: {}", if p.is_outbound() { "outbound" } else { "inbound" },  p.addr());
+                    cloned_self.peers.lock().unwrap().insert(p.addr(), p);
+
+                    true
+                }
+            };
+
+            self.transport.clone().register_on_peer(Box::new(cb));
         }
     }
 }
