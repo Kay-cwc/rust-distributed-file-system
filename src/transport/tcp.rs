@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::Write;
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::{boxed, io, thread};
@@ -35,6 +36,9 @@ impl PeerLike for TcpPeer {
     }
     fn close(&self) -> Result<(), io::Error> {
         self.conn.shutdown(Shutdown::Both)
+    }
+    fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+        self.conn.write_all(buf)
     }
 }
 

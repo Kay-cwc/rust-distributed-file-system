@@ -24,7 +24,7 @@ impl std::error::Error for ErrConnClose {}
 pub trait PeerLike: Send + Sync {
     fn addr(&self) -> SocketAddr;
     fn close(&self) -> Result<(), io::Error>;
-    // fn send(&self, msg: ) -> Result<(), io::Error>;
+    fn send(&mut self, buf: &[u8]) -> Result<(), io::Error>;
 }
 
 pub type HandShakeFn<P> = fn(peer: &Arc<P>) -> Result<(), ErrInvalidHandshake>;
