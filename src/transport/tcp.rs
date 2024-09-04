@@ -11,7 +11,7 @@ use super::encoding::Decoder;
 use super::transport::{HandShakeFn, PeerLike};
 
 /// the peer struct is responsible for the connection between nodes
-pub struct TCPPeer {
+pub struct TcpPeer {
     /// the underlying connection of the peer
     conn: TcpStream,
     /// if dial and retrieve the connection => outbound = true  
@@ -19,9 +19,9 @@ pub struct TCPPeer {
     outbound: bool,
 }
 
-impl TCPPeer {
-    pub fn new(conn: TcpStream, outbound: bool) -> TCPPeer {
-        TCPPeer {
+impl TcpPeer {
+    pub fn new(conn: TcpStream, outbound: bool) -> TcpPeer {
+        TcpPeer {
             conn,
             outbound,
         }
@@ -29,7 +29,7 @@ impl TCPPeer {
 
 }
 
-impl PeerLike for TCPPeer {
+impl PeerLike for TcpPeer {
     fn addr(&self) -> SocketAddr {
         self.conn.peer_addr().unwrap()
     }
@@ -42,7 +42,7 @@ impl PeerLike for TCPPeer {
 pub struct TcpTransportOpts {
     pub listen_addr: String,
     /// allow the handshake function to be passed from the constructor
-    pub shakehands: Option<HandShakeFn<TCPPeer>>,
+    pub shakehands: Option<HandShakeFn<TcpPeer>>,
     pub decoder: Box<dyn Decoder + Send + Sync>,
 }
 
@@ -62,8 +62,8 @@ pub struct TcpTransport {
     listener: TcpListener,
     msg_chan: (Mutex<Sender<Message>>, Mutex<Receiver<Message>>),
 
-    peers: Mutex<HashMap<SocketAddr, Arc<TCPPeer>>>,
-    on_peer: Arc<Mutex<Option<Box<dyn Fn(Arc<TCPPeer>) + Send + Sync + 'static>>>>,
+    peers: Mutex<HashMap<SocketAddr, Arc<TcpPeer>>>,
+    on_peer: Arc<Mutex<Option<Box<dyn Fn(Arc<TcpPeer>) + Send + Sync + 'static>>>>,
 }
 
 // section: implement the transport layer
@@ -100,7 +100,7 @@ impl TcpTransport {
     /// tcp layer for handling after the connection is established between nodes  
     /// it handles the handshake and store the peer in the peers list
     fn handle_conn(&self, conn: TcpStream, outbound: bool) {
-        let peer = Arc::new(TCPPeer::new(conn.try_clone().unwrap(), outbound)); // inbound connection
+        let peer = Arc::new(TcpPeer::new(conn.try_clone().unwrap(), outbound)); // inbound connection
 
         // perform the handshake
         match self.opts.shakehands {
@@ -168,7 +168,7 @@ impl TcpTransport {
 
 
 impl Transport for TcpTransport {
-    type Peer = TCPPeer;
+    type Peer = TcpPeer;
     
     fn addr(self: Arc<Self>) -> String {
         self.opts.listen_addr.clone()
@@ -204,7 +204,7 @@ impl Transport for TcpTransport {
         }
     }
 
-    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<TCPPeer>) + Sync + Send + 'static>) {
+    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<TcpPeer>) + Sync + Send + 'static>) {
         let mut cb = self.on_peer.lock().unwrap();
         *cb = Some(callback);
     }
