@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
-use std::{boxed, io, thread};
+use std::{io, thread};
 use std::net::{SocketAddr, TcpListener, TcpStream, Shutdown};
 
 use crate::transport::message::Message;
@@ -70,7 +70,7 @@ pub struct TcpTransport {
     msg_chan: (Mutex<Sender<Message>>, Mutex<Receiver<Message>>),
 
     peers: Mutex<HashMap<SocketAddr, Arc<TcpPeer>>>,
-    on_peer: Arc<Mutex<Option<Box<dyn Fn(Arc<TcpPeer>) + Send + Sync + 'static>>>>,
+    on_peer: Arc<Mutex<Option<Box<dyn Fn(Arc<TcpPeer>) -> bool + Send + Sync + 'static>>>>,
 }
 
 // section: implement the transport layer
@@ -126,27 +126,18 @@ impl TcpTransport {
         }
 
         // call the on_peer function
-        // TODO: move the mutex to the top level of this fn. other usage of the peer should ref the mutex
         let on_peer = self.on_peer.lock().unwrap();
         if let Some(cb) = &*on_peer {
-            cb(peer.clone());
+            match cb(peer.clone()) {
+                true => {},
+                false => {
+                    println!("Peer {} failed to connect", peer.clone().addr());
+                    self.peers.lock().unwrap().remove(&peer.clone().addr());
+                    peer.clone().close().unwrap();
+                    return;
+                },
+            };
         }
-        // on_peer(peerlike.addr()); // should callback should return a result so that when it fails we can close the connection
-        //     Ok(_) => {
-        //         println!("Peer {} connected", peerlike.addr());
-        //         // self.peers.lock().unwrap().insert(peerlike.addr(), peer);
-        //     },
-        //     Err(_) => {
-        //         println!("[Error] Peer {} failed to connect", peerlike.addr());
-        //         peerlike.close().unwrap();
-        //         return;
-        //     },
-        // }
-        // self.on_peer {
-        //         match on_peer(&peerlike) {
-        //         }
-        //     },
-        // }
 
         // add the peer to the peers list
         self.peers.lock().unwrap().insert(peer.clone().addr(), peer.clone());
@@ -211,7 +202,7 @@ impl Transport for TcpTransport {
         }
     }
 
-    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<TcpPeer>) + Sync + Send + 'static>) {
+    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<TcpPeer>) -> bool + Sync + Send + 'static>) {
         let mut cb = self.on_peer.lock().unwrap();
         *cb = Some(callback);
     }

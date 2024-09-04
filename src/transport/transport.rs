@@ -48,5 +48,7 @@ pub trait Transport: Send + Sync + 'static {
     /// dial a remote address
     fn dial(self: Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>>;
     /// register a callback function to be called when a new peer is connected
-    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<Self::Peer>) + Sync + Send + 'static>);
+    /// the returned boolean should indicate if the peer has been handled successfully. 
+    /// if false, the peer will be closed and removed from the peers list
+    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<Self::Peer>) -> bool + Sync + Send + 'static>);
 }

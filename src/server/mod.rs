@@ -47,11 +47,18 @@ pub mod file_server {
         }
 
         fn register_on_peer_cb(self: &Arc<Self>) {
-            let cb = Box::new(move |p: Arc<T::Peer>| {
-                println!("[server] {} on_peer: {}", if p.is_outbound() { "outbound" } else { "inbound" },  p.addr());
-            });
+            // callback fn when a new peer is connected
+            let cb = {
+                let cloned_self = self.clone();
+                move |p: Arc<T::Peer>| {
+                    println!("[server] {} on_peer: {}", if p.is_outbound() { "outbound" } else { "inbound" },  p.addr());
+                    cloned_self.peers.lock().unwrap().insert(p.addr(), p);
 
-            self.transport.clone().register_on_peer(cb);
+                    true
+                }
+            };
+
+            self.transport.clone().register_on_peer(Box::new(cb));
         }
 
         pub fn start(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
