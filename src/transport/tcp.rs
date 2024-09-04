@@ -10,18 +10,12 @@ use crate::transport::transport::Transport;
 use super::encoding::Decoder;
 use super::transport::{HandShakeFn, OnPeerFn, PeerLike};
 
-/**
- * the peer struct is responsible for the connection between nodes
- */
+/// the peer struct is responsible for the connection between nodes
 pub struct TCPPeer {
-    /**
-     * the underlying connection of the peer
-     */
+    /// the underlying connection of the peer
     conn: TcpStream,
-    /**
-     * if dial and retrieve the connection => outbound = true
-     * if accept and retrieve the connection => outbound = false
-     */
+    /// if dial and retrieve the connection => outbound = true  
+    /// if accept and retrieve the connection => outbound = false
     outbound: bool,
 }
 
@@ -44,9 +38,7 @@ impl PeerLike for TCPPeer {
     }
 }
 
-/**
- * defines the configuration of the tcp transport layer
- */
+/// defines the configuration of the tcp transport layer
 pub struct TCPTransportOpts {
     pub listen_addr: String,
     /// allow the handshake function to be passed from the constructor
@@ -66,9 +58,7 @@ impl TCPTransportOpts {
     }
 }
 
-/**
- * TCPTransport maintains the tcp transport layer and connection with other peer nodes
- */
+/// TCPTransport maintains the tcp transport layer and connection with other peer nodes
 pub struct TCPTransport {
     pub opts: TCPTransportOpts,
     listener: TcpListener,
@@ -111,7 +101,7 @@ impl TCPTransport {
         }
     }
 
-    /// tcp layer for handling after the connection is established between nodes
+    /// tcp layer for handling after the connection is established between nodes  
     /// it handles the handshake and store the peer in the peers list
     fn handle_conn(&self, conn: TcpStream, outbound: bool) {
         let peer = TCPPeer::new(conn.try_clone().unwrap(), outbound); // inbound connection
