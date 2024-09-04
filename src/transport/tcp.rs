@@ -65,7 +65,7 @@ pub struct TcpTransport {
     msg_chan: (Mutex<Sender<Message>>, Mutex<Receiver<Message>>),
 
     peers: Mutex<HashMap<SocketAddr, TCPPeer>>,
-    on_peer: Arc<Mutex<Box<dyn Fn(SocketAddr) + Send + Sync + 'static>>>,
+    on_peer: Arc<Mutex<Option<Box<dyn Fn(SocketAddr) + Send + Sync + 'static>>>>,
 }
 
 // section: implement the transport layer
@@ -80,9 +80,7 @@ impl TcpTransport {
             listener,
             msg_chan: (Mutex::new(channel.0), Mutex::new(channel.1)),
             peers: Mutex::new(HashMap::new()),
-            on_peer: Arc::new(Mutex::new(Box::new(|addr: SocketAddr| {
-                println!("[server] on_peer: {}", addr);
-            }))),
+            on_peer: Arc::new(Mutex::new(Option::None)),
         })
     }
 
@@ -125,7 +123,10 @@ impl TcpTransport {
 
         // call the on_peer function
         let on_peer = self.on_peer.lock().unwrap();
-        on_peer(peerlike.addr()); // should callback should return a result so that when it fails we can close the connection
+        if let Some(cb) = &*on_peer {
+            cb(peerlike.addr());
+        }
+        // on_peer(peerlike.addr()); // should callback should return a result so that when it fails we can close the connection
         //     Ok(_) => {
         //         println!("Peer {} connected", peerlike.addr());
         //         // self.peers.lock().unwrap().insert(peerlike.addr(), peer);
@@ -205,7 +206,7 @@ impl Transport for TcpTransport {
 
     fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(SocketAddr) + Sync + Send + 'static>) {
         let mut cb = self.on_peer.lock().unwrap();
-        *cb = callback;
+        *cb = Some(callback);
     }
 }
 
