@@ -1,4 +1,6 @@
+extern crate bincode;
 extern crate crypto;
+extern crate serde;
 
 pub mod transport;
 pub mod server;

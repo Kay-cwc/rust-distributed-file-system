@@ -69,8 +69,8 @@ pub struct TcpTransport {
     listener: TcpListener,
     msg_chan: (Mutex<Sender<Message>>, Mutex<Receiver<Message>>),
 
-    peers: Mutex<HashMap<SocketAddr, Arc<TcpPeer>>>,
-    on_peer: Arc<Mutex<Option<Box<dyn Fn(Arc<TcpPeer>) -> bool + Send + Sync + 'static>>>>,
+    peers: Mutex<HashMap<SocketAddr, Arc<Mutex<TcpPeer>>>>,
+    on_peer: Arc<Mutex<Option<Box<dyn Fn(Arc<Mutex<TcpPeer>>) -> bool + Send + Sync + 'static>>>>,
 }
 
 // section: implement the transport layer
@@ -107,15 +107,19 @@ impl TcpTransport {
     /// tcp layer for handling after the connection is established between nodes  
     /// it handles the handshake and store the peer in the peers list
     fn handle_conn(&self, conn: TcpStream, outbound: bool) {
-        let peer = Arc::new(TcpPeer::new(conn.try_clone().unwrap(), outbound)); // inbound connection
+        let peer_addr = conn.peer_addr().unwrap();
+        let peer = Arc::new(Mutex::new(
+            TcpPeer::new(conn.try_clone().unwrap(), 
+            outbound)
+        )); // inbound connection
 
         // perform the handshake
         match self.opts.shakehands {
             Some(shakehands) => {
-                match shakehands(&peer.clone()) {
-                    Ok(_) => println!("Handshake with {} successful", peer.clone().addr()),
+                match shakehands(&peer) {
+                    Ok(_) => println!("Handshake with {} successful", peer.lock().unwrap().addr()),
                     Err(_) => {
-                        peer.clone().close().unwrap();
+                        peer.lock().unwrap().close().unwrap();
                         return;
                     },
                 };
@@ -131,20 +135,20 @@ impl TcpTransport {
             match cb(peer.clone()) {
                 true => {},
                 false => {
-                    println!("Peer {} failed to connect", peer.clone().addr());
-                    self.peers.lock().unwrap().remove(&peer.clone().addr());
-                    peer.clone().close().unwrap();
+                    println!("Peer {} failed to connect", peer.lock().unwrap().addr());
+                    self.peers.lock().unwrap().remove(&peer.lock().unwrap().addr());
+                    peer.lock().unwrap().close().unwrap();
                     return;
                 },
             };
         }
 
         // add the peer to the peers list
-        self.peers.lock().unwrap().insert(peer.clone().addr(), peer.clone());
+        self.peers.lock().unwrap().insert(peer_addr, peer.clone());
 
         // read from the connection
         loop {
-            let mut msg = Message::new(peer.clone().addr());
+            let mut msg = Message::new(peer_addr);
             match self.opts.decoder.decode(&mut conn.try_clone().unwrap(), &mut msg) {
                 Ok(_) => {
                     println!("Received data from {}: {}", msg.from, String::from_utf8_lossy(&msg.payload));
@@ -202,7 +206,7 @@ impl Transport for TcpTransport {
         }
     }
 
-    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<TcpPeer>) -> bool + Sync + Send + 'static>) {
+    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<Mutex<TcpPeer>>) -> bool + Sync + Send + 'static>) {
         let mut cb = self.on_peer.lock().unwrap();
         *cb = Some(callback);
     }

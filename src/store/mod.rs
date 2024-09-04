@@ -67,11 +67,9 @@ pub mod store {
             Ok(Box::new(buf_reader))
         }
 
-        /** 
-         * Write a stream to the store
-         * @param key: the key to store the stream
-         * @param r: the stream to store
-         */
+        /// Write a stream to the store  
+        /// param key: the key to store the stream  
+        /// param r: the stream to store
         fn write_stream(&self, key: String, r: &mut dyn io::Read) -> Result<(), io::Error> {
             // house keeping
             // create the directory if it doesn't exist

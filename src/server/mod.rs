@@ -2,7 +2,9 @@ pub mod file_server {
     use std::collections::HashMap;
     use std::net::SocketAddr;
     use std::sync::{mpsc::{Receiver, Sender, TryRecvError}, Arc, Mutex};
-    use std::thread;
+    use std::{io, thread};
+
+    use serde::{Deserialize, Serialize};
 
     use crate::{
         store::store::{Store, StoreOpts}, 
@@ -23,7 +25,13 @@ pub mod file_server {
         store: Store,
         shutdown_chan: (Mutex<Sender<bool>>, Mutex<Receiver<bool>>),
         bootstrap_node: Vec<SocketAddr>,
-        peers: Mutex<HashMap<SocketAddr, Arc<dyn PeerLike + Sync + Send>>>
+        peers: Mutex<HashMap<SocketAddr, Arc<Mutex<dyn PeerLike + Sync + Send>>>>
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct Payload {
+        key: String,
+        data: Vec<u8>,
     }
 
     impl<T: Transport> FileServer<T> {
@@ -86,6 +94,12 @@ pub mod file_server {
             self.shutdown_chan.0.lock().unwrap().send(true).unwrap();
         }
 
+        /// read from a stream and store in the store  
+        /// will also broadcast the data to all connected peers
+        pub fn store_data(self: &Arc<Self>, key: String, r: &mut dyn io::Read) {
+            // self.store.write(key, data.as_slice()).unwrap();
+        }
+
         /// bootstrap the network by connecting to the bootstrap nodes
         /// each dial will be done in a separate thread
         fn bootstrap_network(self: &Arc<Self>) {
@@ -107,15 +121,26 @@ pub mod file_server {
             // callback fn when a new peer is connected
             let cb = {
                 let cloned_self = self.clone();
-                move |p: Arc<T::Peer>| {
+                move |peer: Arc<Mutex<T::Peer>>| {
+                    let p = peer.lock().unwrap();
                     println!("[server] {} on_peer: {}", if p.is_outbound() { "outbound" } else { "inbound" },  p.addr());
-                    cloned_self.peers.lock().unwrap().insert(p.addr(), p);
+                    cloned_self.peers.lock().unwrap().insert(p.addr(), peer.clone());
 
                     true
                 }
             };
 
             self.transport.clone().register_on_peer(Box::new(cb));
+        }
+
+        /// broadcast the payload to all connected peers  
+        fn broadcast(self: &Arc<Self>, payload: Payload) {
+            let buf = bincode::serialize(&payload).unwrap();
+            let peers = self.peers.lock().unwrap();
+            for (_, peer) in peers.iter() {
+                let mut p = peer.lock().unwrap();
+                p.send(&buf).unwrap();
+            }   
         }
     }
 }
