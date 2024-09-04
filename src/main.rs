@@ -11,12 +11,12 @@ use std::time::Duration;
 
 use server::file_server::{FileServer, FileServerOpts};
 use transport::encoding::DefaultDecoder;
-use transport::tcp::{self, TCPTransportOpts};
+use transport::tcp::{self, TcpTransportOpts};
 
 fn make_server(listen_addr: String, nodes: Vec<SocketAddr>) -> Arc<FileServer> {
     // create the transport layer
-    let opts = TCPTransportOpts::new(listen_addr.clone(), Box::new(DefaultDecoder {}));
-    let tcp_transport = tcp::TCPTransport::new(opts);
+    let opts = TcpTransportOpts::new(listen_addr.clone(), Box::new(DefaultDecoder {}));
+    let tcp_transport = tcp::TcpTransport::new(opts);
     
     let file_server_opts = FileServerOpts {
         store_opts: store::store::StoreOpts {

@@ -39,7 +39,7 @@ impl PeerLike for TCPPeer {
 }
 
 /// defines the configuration of the tcp transport layer
-pub struct TCPTransportOpts {
+pub struct TcpTransportOpts {
     pub listen_addr: String,
     /// allow the handshake function to be passed from the constructor
     pub shakehands: Option<HandShakeFn>,
@@ -47,9 +47,9 @@ pub struct TCPTransportOpts {
     // on_peer: Option<OnPeerFn>,
 }
 
-impl TCPTransportOpts {
-    pub fn new(listen_addr: String, decoder: Box<dyn Decoder + Send + Sync>) -> TCPTransportOpts {
-        TCPTransportOpts {
+impl TcpTransportOpts {
+    pub fn new(listen_addr: String, decoder: Box<dyn Decoder + Send + Sync>) -> TcpTransportOpts {
+        TcpTransportOpts {
             listen_addr,
             shakehands: Option::None,
             decoder,
@@ -59,8 +59,8 @@ impl TCPTransportOpts {
 }
 
 /// TCPTransport maintains the tcp transport layer and connection with other peer nodes
-pub struct TCPTransport {
-    pub opts: TCPTransportOpts,
+pub struct TcpTransport {
+    pub opts: TcpTransportOpts,
     listener: TcpListener,
     msg_chan: (Mutex<Sender<Message>>, Mutex<Receiver<Message>>),
 
@@ -70,12 +70,12 @@ pub struct TCPTransport {
 
 // section: implement the transport layer
 
-impl TCPTransport {
+impl TcpTransport {
     /// create a new tcp transport layer
-    pub fn new(opts: TCPTransportOpts) -> Arc<TCPTransport> {
+    pub fn new(opts: TcpTransportOpts) -> Arc<TcpTransport> {
         let listener = TcpListener::bind(&opts.listen_addr).unwrap();
         let channel: (Sender<Message>, Receiver<Message>) = channel();
-        Arc::new(TCPTransport {
+        Arc::new(TcpTransport {
             opts,
             listener,
             msg_chan: (Mutex::new(channel.0), Mutex::new(channel.1)),
@@ -168,7 +168,7 @@ impl TCPTransport {
 }
 
 
-impl Transport for TCPTransport {
+impl Transport for TcpTransport {
     fn addr(self: Arc<Self>) -> String {
         self.opts.listen_addr.clone()
     }
@@ -220,25 +220,25 @@ mod tests {
     #[test]
     fn test_new_tcp_transport() {
         let addr = String::from("localhost:3000");
-        let opts = TCPTransportOpts {
+        let opts = TcpTransportOpts {
             listen_addr: addr.clone(),
             shakehands: Option::None,
             decoder: Box::new(DefaultDecoder {}),
         };
-        let transport = TCPTransport::new(opts);
+        let transport = TcpTransport::new(opts);
         assert_eq!(transport.opts.listen_addr, addr);
     }
 
     #[test]
     fn test_listen_and_accept() {
         let addr = String::from("localhost:3000");
-        let opts = TCPTransportOpts {
+        let opts = TcpTransportOpts {
             listen_addr: addr.clone(),
             shakehands: Option::None,
             decoder: Box::new(DefaultDecoder {}),
         };
 
-        let transport = TCPTransport::new(opts);
+        let transport = TcpTransport::new(opts);
         // test if the listen_and_accept function is working
         assert_eq!(transport.listen_and_accept().is_ok(), true);
     }
