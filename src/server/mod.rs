@@ -1,28 +1,33 @@
 pub mod file_server {
-    use std::{collections::HashMap, net::SocketAddr, sync::{mpsc::{Receiver, Sender, TryRecvError}, Arc, Mutex}, thread};
+    use std::collections::HashMap;
+    use std::net::SocketAddr;
+    use std::sync::{mpsc::{Receiver, Sender, TryRecvError}, Arc, Mutex};
+    use std::thread;
 
     use crate::{
         store::store::{Store, StoreOpts}, 
         transport::transport::{PeerLike, Transport},
     };
 
-    pub struct FileServerOpts {
+    pub struct FileServerOpts<T: Transport> {
         // storage options
         pub store_opts: StoreOpts,
-        pub transport: Arc<dyn Transport + Send + Sync>,
+        pub transport: Arc<T>,
         pub bootstrap_node: Vec<SocketAddr>,
     }
 
-    pub struct FileServer {
-        transport: Arc<dyn Transport + Send + Sync>,
+    // for future me: FileServer is generic since we need to make sure the size of the transport layer is known at compile time
+    // the transport layer can be generic in coding level, but in runtime, we need to know the size of the transport layer
+    pub struct FileServer<T: Transport> {
+        transport: Arc<T>,
         store: Store,
         shutdown_chan: (Mutex<Sender<bool>>, Mutex<Receiver<bool>>),
         bootstrap_node: Vec<SocketAddr>,
         peers: Mutex<HashMap<SocketAddr, Arc<dyn PeerLike + Sync + Send>>>
     }
 
-    impl FileServer {
-        pub fn new(opts: FileServerOpts) -> Arc<FileServer> {
+    impl<T: Transport> FileServer<T> {
+        pub fn new(opts: FileServerOpts<T>) -> Arc<FileServer<T>> {
             let store_opts = opts.store_opts;
             let transport = opts.transport;
             let store = Store::new(store_opts);
@@ -42,8 +47,8 @@ pub mod file_server {
         }
 
         fn register_on_peer_cb(self: &Arc<Self>) {
-            let cb = Box::new(move |addr: SocketAddr| {
-                println!("[server] on_peer: {}", addr);
+            let cb = Box::new(move |p: Arc<T::Peer>| {
+                println!("[server] on_peer: {}", p.addr());
             });
 
             self.transport.clone().register_on_peer(cb);

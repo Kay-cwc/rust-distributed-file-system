@@ -8,7 +8,7 @@ use crate::transport::message::Message;
 use crate::transport::transport::Transport;
 
 use super::encoding::Decoder;
-use super::transport::{HandShakeFn, OnPeerFn, PeerLike};
+use super::transport::{HandShakeFn, PeerLike};
 
 /// the peer struct is responsible for the connection between nodes
 pub struct TCPPeer {
@@ -42,9 +42,8 @@ impl PeerLike for TCPPeer {
 pub struct TcpTransportOpts {
     pub listen_addr: String,
     /// allow the handshake function to be passed from the constructor
-    pub shakehands: Option<HandShakeFn>,
+    pub shakehands: Option<HandShakeFn<TCPPeer>>,
     pub decoder: Box<dyn Decoder + Send + Sync>,
-    // on_peer: Option<OnPeerFn>,
 }
 
 impl TcpTransportOpts {
@@ -53,7 +52,6 @@ impl TcpTransportOpts {
             listen_addr,
             shakehands: Option::None,
             decoder,
-            // on_peer: Option::None,
         }
     }
 }
@@ -64,8 +62,8 @@ pub struct TcpTransport {
     listener: TcpListener,
     msg_chan: (Mutex<Sender<Message>>, Mutex<Receiver<Message>>),
 
-    peers: Mutex<HashMap<SocketAddr, TCPPeer>>,
-    on_peer: Arc<Mutex<Option<Box<dyn Fn(SocketAddr) + Send + Sync + 'static>>>>,
+    peers: Mutex<HashMap<SocketAddr, Arc<TCPPeer>>>,
+    on_peer: Arc<Mutex<Option<Box<dyn Fn(Arc<TCPPeer>) + Send + Sync + 'static>>>>,
 }
 
 // section: implement the transport layer
@@ -102,16 +100,15 @@ impl TcpTransport {
     /// tcp layer for handling after the connection is established between nodes  
     /// it handles the handshake and store the peer in the peers list
     fn handle_conn(&self, conn: TcpStream, outbound: bool) {
-        let peer = TCPPeer::new(conn.try_clone().unwrap(), outbound); // inbound connection
-        let peerlike: Box<dyn PeerLike> = Box::new(TCPPeer::new(conn.try_clone().unwrap(), outbound));
+        let peer = Arc::new(TCPPeer::new(conn.try_clone().unwrap(), outbound)); // inbound connection
 
         // perform the handshake
         match self.opts.shakehands {
             Some(shakehands) => {
-                match shakehands(&peerlike) {
-                    Ok(_) => println!("Handshake with {} successful", peerlike.addr()),
+                match shakehands(&peer.clone()) {
+                    Ok(_) => println!("Handshake with {} successful", peer.clone().addr()),
                     Err(_) => {
-                        peerlike.close().unwrap();
+                        peer.clone().close().unwrap();
                         return;
                     },
                 };
@@ -122,9 +119,10 @@ impl TcpTransport {
         }
 
         // call the on_peer function
+        // TODO: move the mutex to the top level of this fn. other usage of the peer should ref the mutex
         let on_peer = self.on_peer.lock().unwrap();
         if let Some(cb) = &*on_peer {
-            cb(peerlike.addr());
+            cb(peer.clone());
         }
         // on_peer(peerlike.addr()); // should callback should return a result so that when it fails we can close the connection
         //     Ok(_) => {
@@ -144,11 +142,11 @@ impl TcpTransport {
         // }
 
         // add the peer to the peers list
-        self.peers.lock().unwrap().insert(peerlike.addr(), peer);
+        self.peers.lock().unwrap().insert(peer.clone().addr(), peer.clone());
 
         // read from the connection
         loop {
-            let mut msg = Message::new(peerlike.addr());
+            let mut msg = Message::new(peer.clone().addr());
             match self.opts.decoder.decode(&mut conn.try_clone().unwrap(), &mut msg) {
                 Ok(_) => {
                     println!("Received data from {}: {}", msg.from, String::from_utf8_lossy(&msg.payload));
@@ -170,6 +168,8 @@ impl TcpTransport {
 
 
 impl Transport for TcpTransport {
+    type Peer = TCPPeer;
+    
     fn addr(self: Arc<Self>) -> String {
         self.opts.listen_addr.clone()
     }
@@ -204,7 +204,7 @@ impl Transport for TcpTransport {
         }
     }
 
-    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(SocketAddr) + Sync + Send + 'static>) {
+    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<TCPPeer>) + Sync + Send + 'static>) {
         let mut cb = self.on_peer.lock().unwrap();
         *cb = Some(callback);
     }

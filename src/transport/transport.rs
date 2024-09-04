@@ -21,18 +21,20 @@ impl Display for ErrConnClose {
 impl std::error::Error for ErrConnClose {}
 
 /// a generic interface for peer
-pub trait PeerLike {
+pub trait PeerLike: Send + Sync {
     fn addr(&self) -> SocketAddr;
     fn close(&self) -> Result<(), io::Error>;
     // fn send(&self, msg: ) -> Result<(), io::Error>;
 }
 
-pub type HandShakeFn = fn(peer: &Box<dyn PeerLike>) -> Result<(), ErrInvalidHandshake>;
+pub type HandShakeFn<P> = fn(peer: &Arc<P>) -> Result<(), ErrInvalidHandshake>;
 pub type OnPeerFn = fn(peer: &Box<dyn PeerLike>) -> Result<(), ErrConnClose>;
 
 /// a top level interface for the transport layer  
 /// should be implemented by all transport layer
-pub trait Transport {
+pub trait Transport: Send + Sync + 'static {
+    type Peer: PeerLike;
+
     /// return the local address of the listener
     fn addr(self: Arc<Self>) -> String;
     /// clean up
@@ -43,6 +45,6 @@ pub trait Transport {
     fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>;
     /// dial a remote address
     fn dial(self: Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>>;
-
-    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(SocketAddr) + Sync + Send + 'static>);
+    /// register a callback function to be called when a new peer is connected
+    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<Self::Peer>) + Sync + Send + 'static>);
 }
