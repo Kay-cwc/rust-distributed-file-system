@@ -2,7 +2,7 @@ use std::{
     fmt::{self, Display, Formatter}, 
     io, net::SocketAddr, 
     sync::{
-        mpsc::TryRecvError, Arc, Mutex
+        mpsc::RecvTimeoutError, Arc, Mutex
     }
 };
 
@@ -42,7 +42,7 @@ pub trait Transport: Send + Sync + 'static {
     /// clean up
     fn close(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>; 
     /// to receive a message from the transport layer
-    fn consume(self: Arc<Self>) -> Result<Message, TryRecvError>;
+    fn consume(self: Arc<Self>) -> Result<Message, RecvTimeoutError>;
     /// start listening and accepting incoming connections
     fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>;
     /// dial a remote address

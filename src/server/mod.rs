@@ -1,7 +1,8 @@
 pub mod file_server {
     use std::collections::HashMap;
     use std::net::SocketAddr;
-    use std::sync::{mpsc::{Receiver, Sender, TryRecvError}, Arc, Mutex};
+    use std::sync::mpsc::RecvTimeoutError;
+    use std::sync::{mpsc::{Receiver, Sender}, Arc, Mutex};
     use std::{io, thread};
 
     use serde::{Deserialize, Serialize};
@@ -28,10 +29,20 @@ pub mod file_server {
         peers: Mutex<HashMap<SocketAddr, Arc<Mutex<dyn PeerLike + Sync + Send>>>>
     }
 
-    #[derive(Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize, Debug)]
     struct Payload {
         key: String,
         data: Vec<u8>,
+    }
+
+    impl Payload {
+        pub fn from_buffer(buf: Vec<u8>) -> Payload {
+            bincode::deserialize(&buf).unwrap()
+        }
+
+        pub fn to_buffer(&self) -> Vec<u8> {
+            bincode::serialize(&self).unwrap()
+        }
     }
 
     impl<T: Transport> FileServer<T> {
@@ -79,13 +90,16 @@ pub mod file_server {
                     Err(e) => {
                         // handle error
                         match e {
-                            TryRecvError::Empty => continue,
-                            TryRecvError::Disconnected => break,
+                            RecvTimeoutError::Timeout => continue,
+                            RecvTimeoutError::Disconnected => break,
                         }
                     }
                 };
-                
-                println!("Received message: {:?}", msg);   
+
+                println!("Received data from {}: {:?}", msg.from, msg.payload);
+                let paylod = Payload::from_buffer(msg.payload);
+                println!("Received data from {}: {} -> {}", msg.from, paylod.key, String::from_utf8_lossy(&paylod.data));
+                self.store.write(paylod.key, &mut paylod.data.as_slice()).unwrap();
             }
 
             Ok(())
@@ -98,12 +112,13 @@ pub mod file_server {
         /// read from a stream and store in the store  
         /// will also broadcast the data to all connected peers
         pub fn store_data(self: &Arc<Self>, key: String, r: &mut dyn io::Read) {
+            let mut buf = vec![0; 1024];
+            let n = r.read(&mut buf).unwrap();
+            println!("[server] read {} bytes", n);
+            buf = buf[..n].to_vec();
             // questionable design choice: we are reading the stream twice
-            match self.store.write(key.clone(), r) {
+            match self.store.write(key.clone(), &mut buf) {
                 Ok(_) => {
-                    println!("Data written to store");
-                    let mut buf = Vec::new();
-                    r.read_to_end(&mut buf).unwrap();
                     let payload = Payload {
                         key: key.clone(),
                         data: buf,
@@ -151,14 +166,14 @@ pub mod file_server {
 
         /// broadcast the payload to all connected peers  
         fn broadcast(self: &Arc<Self>, payload: Payload) {
-            println!("Broadcasting data to all peers");
-            let buf = bincode::serialize(&payload).unwrap();
+            println!("Broadcasting data: {:?}", payload);
+            let buf = Payload::to_buffer(&payload);
             let peers = self.peers.lock().unwrap();
             for (_, peer) in peers.iter() {
                 let mut p = peer.lock().unwrap();
-                println!("Sending data to {}", p.addr());
+                println!("Sending data to {}: {:?}", p.addr(), buf);
                 p.send(&buf).unwrap();
-            }   
+            }
         }
     }
 }

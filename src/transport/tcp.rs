@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::io::Write;
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{channel, Receiver, Sender, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::{io, thread};
 use std::net::{SocketAddr, TcpListener, TcpStream, Shutdown};
 
@@ -39,6 +40,7 @@ impl PeerLike for TcpPeer {
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+        println!("Sending data to {}: {}", self.addr(), String::from_utf8_lossy(buf));
         self.conn.write_all(buf)
     }
 
@@ -52,11 +54,11 @@ pub struct TcpTransportOpts {
     pub listen_addr: String,
     /// allow the handshake function to be passed from the constructor
     pub shakehands: Option<HandShakeFn<TcpPeer>>,
-    pub decoder: Box<dyn Decoder + Send + Sync>,
+    pub decoder: Box<dyn Decoder>,
 }
 
 impl TcpTransportOpts {
-    pub fn new(listen_addr: String, decoder: Box<dyn Decoder + Send + Sync>) -> TcpTransportOpts {
+    pub fn new(listen_addr: String, decoder: Box<dyn Decoder>) -> TcpTransportOpts {
         TcpTransportOpts {
             listen_addr,
             shakehands: Option::None,
@@ -149,6 +151,7 @@ impl TcpTransport {
         self.peers.lock().unwrap().insert(peer_addr, peer.clone());
 
         // read from the connection
+        println!("Starting to read from connection: {}", peer.lock().unwrap().addr());
         loop {
             let mut msg = Message::new(peer_addr);
             match self.opts.decoder.decode(&mut conn.try_clone().unwrap(), &mut msg) {
@@ -184,8 +187,8 @@ impl Transport for TcpTransport {
         Ok(())
     }
 
-    fn consume(self: Arc<Self>) -> Result<Message, TryRecvError> {
-        self.msg_chan.1.lock().unwrap().try_recv()
+    fn consume(self: Arc<Self>) -> Result<Message, RecvTimeoutError> {
+        self.msg_chan.1.lock().unwrap().recv_timeout(Duration::from_secs(1))
     }
 
     fn close(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {

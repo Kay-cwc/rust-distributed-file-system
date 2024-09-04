@@ -24,13 +24,14 @@ pub mod store {
         pub fn read(&self, key: String) -> Result<Vec<u8>, ErrorKind> {
             let mut reader = self.read_stream(key)?;
             let mut buf = Vec::new();
+            // it is safe to use read_to_end here as it is guaranteed to be a file stream instead of network stream
             reader.read_to_end(&mut buf).unwrap();
 
             Ok(buf)
         }
 
         /// write the stream to the store
-        pub fn write(&self, key: String, r: &mut dyn io::Read) -> Result<(), io::Error> {
+        pub fn write(&self, key: String, r: &[u8]) -> Result<(), io::Error> {
             self.write_stream(key, r)
         }
 
@@ -70,17 +71,17 @@ pub mod store {
         /// Write a stream to the store  
         /// param key: the key to store the stream  
         /// param r: the stream to store
-        fn write_stream(&self, key: String, r: &mut dyn io::Read) -> Result<(), io::Error> {
+        fn write_stream(&self, key: String, buf: &[u8]) -> Result<(), io::Error> {
             // house keeping
             // create the directory if it doesn't exist
             fs::create_dir_all(&self.opts.root_dir).unwrap();
             let filename = self.fullpath(key);
             
             let mut w = fs::File::create(&filename).unwrap();
-            
+            let mut cursor = io::Cursor::new(buf);
             // write the stream to the file
             // FIXME: the encoding is not handled here
-            let bytes_written = io::copy(r, &mut w)?;
+            let bytes_written = io::copy(&mut cursor, &mut w)?;
             println!("written {} bytes to {}", bytes_written, filename);
 
             Ok(())
@@ -110,26 +111,26 @@ pub mod store {
         fn test_store_write_stream() {
             let store = Store { opts: StoreOpts { filename_transform: |s| s, root_dir: TEST_ROOT_DIR.to_string() } };
             let key = String::from  ("test");
-            let mut r = io::Cursor::new(vec![1, 2, 3, 4]);
-            let res = store.write_stream(key, &mut r);
+            let mut buf = vec![1, 2, 3, 4];
+            let res = store.write_stream(key, &mut buf);
             assert_eq!(res.is_ok(), true);
         }
-
+        
         #[test]
         fn test_store_write_stream_with_path_transform() {
             let store = Store { opts: StoreOpts { filename_transform: filename_transform, root_dir: TEST_ROOT_DIR.to_string() } };
             let key = String::from("test");
-            let mut r = io::Cursor::new(vec![1, 2, 3, 4]);
-            let res = store.write_stream(key, &mut r);
+            let mut buf = vec![1, 2, 3, 4];
+            let res = store.write_stream(key, &mut buf);
             assert_eq!(res.is_ok(), true);
         }
-
+        
         #[test]
         fn test_store_read_stream() {
             let store = Store { opts: StoreOpts { filename_transform: |s| s, root_dir: TEST_ROOT_DIR.to_string() } };
             let key = String::from("test");
-            let mut r = io::Cursor::new(vec![1, 2, 3, 4]);
-            store.write_stream(key.clone(), &mut r).unwrap();
+            let mut buf = vec![1, 2, 3, 4];
+            store.write_stream(key.clone(), &mut buf).unwrap();
             let res = store.read(key).unwrap();
             let expected_res = vec![1, 2, 3, 4];
 
@@ -140,7 +141,7 @@ pub mod store {
         fn test_store_read_unmatched_content() {
             let store = Store { opts: StoreOpts { filename_transform: |s| s, root_dir: TEST_ROOT_DIR.to_string() } };
             let key = String::from("test");
-            let mut r = io::Cursor::new(vec![]);
+            let mut r = vec![];
             store.write_stream(key.clone(), &mut r).unwrap();
             let res = store.read(key).unwrap();
 
@@ -161,7 +162,7 @@ pub mod store {
         fn test_delete_file() {
             let store = Store { opts: StoreOpts { filename_transform: |s| s, root_dir: TEST_ROOT_DIR.to_string() } };
             let key = String::from("file_to_be_deleted");
-            let mut r = io::Cursor::new(vec![1, 2, 3, 4]);
+            let mut r = vec![1, 2, 3, 4];
             store.write_stream(key.clone(), &mut r).unwrap();
             let res = store.delete(key).unwrap();
 
@@ -182,7 +183,7 @@ pub mod store {
         fn test_clear_store() {
             let store = Store { opts: StoreOpts { filename_transform: |s| s, root_dir: TEST_ROOT_DIR.to_string() } };
             let key = String::from("file_to_be_deleted");
-            let mut r = io::Cursor::new(vec![1, 2, 3, 4]);
+            let mut r = vec![1, 2, 3, 4];
             store.write_stream(key.clone(), &mut r).unwrap();
             let res = store.clear().unwrap();
 
