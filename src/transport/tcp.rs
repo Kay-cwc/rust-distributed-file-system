@@ -52,7 +52,7 @@ pub struct TCPTransportOpts {
     /// allow the handshake function to be passed from the constructor
     pub shakehands: Option<HandShakeFn>,
     pub decoder: Box<dyn Decoder + Send + Sync>,
-    on_peer: Option<OnPeerFn>,
+    // on_peer: Option<OnPeerFn>,
 }
 
 impl TCPTransportOpts {
@@ -61,7 +61,7 @@ impl TCPTransportOpts {
             listen_addr,
             shakehands: Option::None,
             decoder,
-            on_peer: Option::None,
+            // on_peer: Option::None,
         }
     }
 }
@@ -75,6 +75,7 @@ pub struct TCPTransport {
     msg_chan: (Mutex<Sender<Message>>, Mutex<Receiver<Message>>),
 
     peers: Mutex<HashMap<SocketAddr, TCPPeer>>,
+    on_peer: Arc<Mutex<Box<dyn Fn(SocketAddr) + Send + Sync + 'static>>>,
 }
 
 // section: implement the transport layer
@@ -89,11 +90,10 @@ impl TCPTransport {
             listener,
             msg_chan: (Mutex::new(channel.0), Mutex::new(channel.1)),
             peers: Mutex::new(HashMap::new()),
+            on_peer: Arc::new(Mutex::new(Box::new(|addr: SocketAddr| {
+                println!("[server] on_peer: {}", addr);
+            }))),
         })
-    }
-
-    pub fn on_peer(&mut self, on_peer: OnPeerFn) {
-        self.opts.on_peer = Some(on_peer);
     }
 
     /// create a blocking loop to accept incoming connections
@@ -134,24 +134,23 @@ impl TCPTransport {
         }
 
         // call the on_peer function
-        match self.opts.on_peer {
-            Some(on_peer) => {
-                match on_peer(&peerlike) {
-                    Ok(_) => {
-                        println!("Peer {} connected", peerlike.addr());
-                        // self.peers.lock().unwrap().insert(peerlike.addr(), peer);
-                    },
-                    Err(_) => {
-                        println!("[Error] Peer {} failed to connect", peerlike.addr());
-                        peerlike.close().unwrap();
-                        return;
-                    },
-                }
-            },
-            None => {
-                println!("No on_peer function provided");
-            }
-        }
+        let on_peer = self.on_peer.lock().unwrap();
+        on_peer(peerlike.addr()); // should callback should return a result so that when it fails we can close the connection
+        //     Ok(_) => {
+        //         println!("Peer {} connected", peerlike.addr());
+        //         // self.peers.lock().unwrap().insert(peerlike.addr(), peer);
+        //     },
+        //     Err(_) => {
+        //         println!("[Error] Peer {} failed to connect", peerlike.addr());
+        //         peerlike.close().unwrap();
+        //         return;
+        //     },
+        // }
+        // self.on_peer {
+        //         match on_peer(&peerlike) {
+        //         }
+        //     },
+        // }
 
         // add the peer to the peers list
         self.peers.lock().unwrap().insert(peerlike.addr(), peer);
@@ -213,6 +212,11 @@ impl Transport for TCPTransport {
             }
         }
     }
+
+    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(SocketAddr) + Sync + Send + 'static>) {
+        let mut cb = self.on_peer.lock().unwrap();
+        *cb = callback;
+    }
 }
 
 // section: tests
@@ -230,7 +234,6 @@ mod tests {
             listen_addr: addr.clone(),
             shakehands: Option::None,
             decoder: Box::new(DefaultDecoder {}),
-            on_peer: Option::None
         };
         let transport = TCPTransport::new(opts);
         assert_eq!(transport.opts.listen_addr, addr);
@@ -243,7 +246,6 @@ mod tests {
             listen_addr: addr.clone(),
             shakehands: Option::None,
             decoder: Box::new(DefaultDecoder {}),
-            on_peer: Option::None,
         };
 
         let transport = TCPTransport::new(opts);

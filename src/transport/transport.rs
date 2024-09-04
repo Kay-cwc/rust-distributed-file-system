@@ -43,4 +43,6 @@ pub trait Transport {
     fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>;
     /// dial a remote address
     fn dial(self: Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>>;
+
+    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(SocketAddr) + Sync + Send + 'static>);
 }

@@ -27,13 +27,26 @@ pub mod file_server {
             let transport = opts.transport;
             let store = Store::new(store_opts);
             let shutdown_chan_ = std::sync::mpsc::channel();
-            Arc::new(FileServer {
+
+            let server = Arc::new(FileServer {
                 transport,
                 store,
                 shutdown_chan: (Mutex::new(shutdown_chan_.0), Mutex::new(shutdown_chan_.1)),
                 bootstrap_node: opts.bootstrap_node,
                 peers: Mutex::new(HashMap::new())
-            })
+            });
+
+            server.register_on_peer_cb();
+
+            server
+        }
+
+        fn register_on_peer_cb(self: &Arc<Self>) {
+            let cb = Box::new(move |addr: SocketAddr| {
+                println!("[server] on_peer: {}", addr);
+            });
+
+            self.transport.clone().register_on_peer(cb);
         }
 
         pub fn start(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
