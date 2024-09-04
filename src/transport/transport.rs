@@ -28,11 +28,12 @@ pub trait PeerLike: Send + Sync {
 }
 
 pub type HandShakeFn<P> = fn(peer: &Arc<P>) -> Result<(), ErrInvalidHandshake>;
-pub type OnPeerFn = fn(peer: &Box<dyn PeerLike>) -> Result<(), ErrConnClose>;
 
 /// a top level interface for the transport layer  
 /// should be implemented by all transport layer
 pub trait Transport: Send + Sync + 'static {
+    // this associated type is used to define the type of peer for the transport layer.
+    // this helps to ensure the generic impl of the transport layer to have a definite size at compile time
     type Peer: PeerLike;
 
     /// return the local address of the listener
