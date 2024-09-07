@@ -7,6 +7,7 @@ pub mod file_server {
 
     use serde::{Deserialize, Serialize};
 
+    use crate::transport::message::Message;
     use crate::{
         store::store::{Store, StoreOpts}, 
         transport::transport::{PeerLike, Transport},
@@ -30,13 +31,39 @@ pub mod file_server {
     }
 
     #[derive(Serialize, Deserialize, Debug)]
+    enum MessageType {
+        Store,
+    }
+
+    /// represent the payload of the message in message.rs/Message
+    /// this data will become generic as there are multiple types of data that can be sent.
+    /// right now, it is just a simple key-value pair
+    #[derive(Serialize, Deserialize, Debug)]
     struct Payload {
-        key: String,
-        data: Vec<u8>,
+        from: String,
+        msg_type: MessageType,
+        msg: Vec<u8>,
     }
 
     impl Payload {
         pub fn from_buffer(buf: Vec<u8>) -> Payload {
+            bincode::deserialize(&buf).unwrap()
+        }
+
+        pub fn to_buffer(&self) -> Vec<u8> {
+            bincode::serialize(&self).unwrap()
+        }
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    struct MessageData {
+        key: String,
+        data: Vec<u8>,
+    }
+
+    /// helper functions for serializing and deserializing the payload
+    impl MessageData {
+        pub fn from_buffer(buf: Vec<u8>) -> MessageData {
             bincode::deserialize(&buf).unwrap()
         }
 
@@ -85,8 +112,8 @@ pub mod file_server {
                     break;
                 }
 
-                let msg = match self.transport.clone().consume() {
-                    Ok(msg) => msg,
+                match self.transport.clone().consume() {
+                    Ok(msg) => self.handle_message(&msg),
                     Err(e) => {
                         // handle error
                         match e {
@@ -95,11 +122,6 @@ pub mod file_server {
                         }
                     }
                 };
-
-                println!("Received data from {}: {:?}", msg.from, msg.payload);
-                let paylod = Payload::from_buffer(msg.payload);
-                println!("Received data from {}: {} -> {}", msg.from, paylod.key, String::from_utf8_lossy(&paylod.data));
-                self.store.write(paylod.key, &mut paylod.data.as_slice()).unwrap();
             }
 
             Ok(())
@@ -120,8 +142,12 @@ pub mod file_server {
             match self.store.write(key.clone(), &mut buf) {
                 Ok(_) => {
                     let payload = Payload {
-                        key: key.clone(),
-                        data: buf,
+                        from: self.transport.clone().addr(),
+                        msg_type: MessageType::Store,
+                        msg: MessageData {
+                            key: key.clone(),
+                            data: buf,
+                        }.to_buffer(),
                     };
                     self.broadcast(payload);
                 },
@@ -164,15 +190,26 @@ pub mod file_server {
             self.transport.clone().register_on_peer(Box::new(cb));
         }
 
+        fn handle_message(self: &Arc<Self>, msg: &Message) {
+            let payload = Payload::from_buffer(msg.payload.clone());
+            match payload.msg_type {
+                MessageType::Store => {
+                    let msg_data = MessageData::from_buffer(payload.msg);
+                    println!("Received data from {}: {} -> {}", msg.from, msg_data.key, String::from_utf8_lossy(&msg_data.data));
+                    self.store.write(msg_data.key, &mut msg_data.data.as_slice()).unwrap();
+                },
+            }
+        }
+
         /// broadcast the payload to all connected peers  
         fn broadcast(self: &Arc<Self>, payload: Payload) {
             println!("Broadcasting data: {:?}", payload);
-            let buf = Payload::to_buffer(&payload);
+            let payload_buffer = payload.to_buffer();
             let peers = self.peers.lock().unwrap();
             for (_, peer) in peers.iter() {
                 let mut p = peer.lock().unwrap();
-                println!("Sending data to {}: {:?}", p.addr(), buf);
-                p.send(&buf).unwrap();
+                println!("Sending data to {}: {:?}", p.addr(), payload_buffer);
+                p.send(&payload_buffer).unwrap();
             }
         }
     }
