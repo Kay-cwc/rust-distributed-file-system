@@ -2,11 +2,11 @@ extern crate bincode;
 extern crate crypto;
 extern crate serde;
 
-pub mod transport;
+// pub mod lib;
 pub mod server;
 pub mod store;
+pub mod transport;
 
-use std::io::Cursor;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::{thread, vec};
