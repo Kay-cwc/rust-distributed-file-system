@@ -46,6 +46,8 @@ pub trait Transport: Send + Sync + 'static {
     /// start listening and accepting incoming connections
     fn listen_and_accept(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>>;
     /// dial a remote address
+    /// this function should block the current thread until the connection is established 
+    /// so that the caller can be sure that the connection is ready
     fn dial(self: Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>>;
     /// register a callback function to be called when a new peer is connected
     /// the returned boolean should indicate if the peer has been handled successfully. 

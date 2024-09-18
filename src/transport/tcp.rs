@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env::consts::ARCH;
 use std::io::Write;
 use std::sync::mpsc::{channel, Receiver, Sender, RecvTimeoutError};
 use std::sync::{Arc, Mutex, RwLock};
@@ -94,12 +95,16 @@ impl TcpTransport {
     }
 
     /// create a blocking loop to accept incoming connections
-    fn start_accept(&self) {
+    fn start_accept(self: &Arc<Self>) {
         for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    println!("New connection: {}", stream.peer_addr().unwrap());
-                    self.handle_conn(stream, false);
+                    // received a new connection. handle the connection and unblock the thread
+                    let self_clone = self.clone();
+                    thread::spawn(move || {
+                        println!("New connection from {}", stream.peer_addr().unwrap());
+                        self_clone.clone().handle_conn(stream, false);
+                    });
                 }
                 Err(e) => {
                     println!("Error: {}", e);
