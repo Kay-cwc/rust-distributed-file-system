@@ -2,7 +2,7 @@ use std::{
     fmt::{self, Display, Formatter}, 
     io, net::SocketAddr, 
     sync::{
-        mpsc::RecvTimeoutError, Arc, Mutex
+        mpsc::RecvTimeoutError, Arc, RwLock
     }
 };
 
@@ -28,7 +28,7 @@ pub trait PeerLike: Send + Sync {
     fn is_outbound(&self) -> bool;
 }
 
-pub type HandShakeFn<P> = fn(peer: &Arc<Mutex<P>>) -> Result<(), ErrInvalidHandshake>;
+pub type HandShakeFn<P> = fn(peer: &Arc<RwLock<P>>) -> Result<(), ErrInvalidHandshake>;
 
 /// a top level interface for the transport layer  
 /// should be implemented by all transport layer
@@ -51,5 +51,5 @@ pub trait Transport: Send + Sync + 'static {
     /// the returned boolean should indicate if the peer has been handled successfully. 
     /// if false, the peer will be closed and removed from the peers list
     /// TODO: can abstract the callback function?
-    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<Mutex<Self::Peer>>) -> bool + Sync + Send + 'static>);
+    fn register_on_peer(self: Arc<Self>, callback: Box<dyn Fn(Arc<RwLock<Self::Peer>>) -> bool + Sync + Send + 'static>);
 }

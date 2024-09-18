@@ -2,6 +2,7 @@ pub mod file_server {
     use std::collections::HashMap;
     use std::net::SocketAddr;
     use std::sync::mpsc::RecvTimeoutError;
+    use std::sync::RwLock;
     use std::sync::{mpsc::{Receiver, Sender}, Arc, Mutex};
     use std::{io, thread};
 
@@ -27,7 +28,7 @@ pub mod file_server {
         store: Store,
         shutdown_chan: (Mutex<Sender<bool>>, Mutex<Receiver<bool>>),
         bootstrap_node: Vec<SocketAddr>,
-        peers: Mutex<HashMap<SocketAddr, Arc<Mutex<dyn PeerLike + Sync + Send>>>>
+        peers: RwLock<HashMap<SocketAddr, Arc<RwLock<dyn PeerLike + Sync + Send>>>>
     }
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -84,7 +85,7 @@ pub mod file_server {
                 store,
                 shutdown_chan: (Mutex::new(shutdown_chan_.0), Mutex::new(shutdown_chan_.1)),
                 bootstrap_node: opts.bootstrap_node,
-                peers: Mutex::new(HashMap::new())
+                peers: RwLock::new(HashMap::new())
             });
 
             server.register_on_peer_cb();
@@ -178,10 +179,10 @@ pub mod file_server {
             // callback fn when a new peer is connected
             let cb = {
                 let cloned_self = self.clone();
-                move |peer: Arc<Mutex<T::Peer>>| {
-                    let p = peer.lock().unwrap();
+                move |peer: Arc<RwLock<T::Peer>>| {
+                    let p = peer.read().unwrap();
                     println!("[server] {} on_peer: {}", if p.is_outbound() { "outbound" } else { "inbound" },  p.addr());
-                    cloned_self.peers.lock().unwrap().insert(p.addr(), peer.clone());
+                    cloned_self.peers.write().unwrap().insert(p.addr(), peer.clone());
 
                     true
                 }
@@ -205,9 +206,9 @@ pub mod file_server {
         fn broadcast(self: &Arc<Self>, payload: Payload) {
             println!("Broadcasting data: {:?}", payload);
             let payload_buffer = payload.to_buffer();
-            let peers = self.peers.lock().unwrap();
+            let peers = self.peers.read().unwrap();
             for (_, peer) in peers.iter() {
-                let mut p = peer.lock().unwrap();
+                let mut p = peer.write().unwrap();
                 println!("Sending data to {}: {:?}", p.addr(), payload_buffer);
                 p.send(&payload_buffer).unwrap();
             }
