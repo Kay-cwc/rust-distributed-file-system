@@ -102,7 +102,6 @@ impl TcpTransport {
                     // received a new connection. handle the connection and unblock the thread
                     let self_clone = self.clone();
                     thread::spawn(move || {
-                        println!("New connection from {}", stream.peer_addr().unwrap());
                         self_clone.clone().handle_conn(stream, false);
                     });
                 }
@@ -211,7 +210,6 @@ impl Transport for TcpTransport {
                 Ok(())
             },
             Err(e) => {
-                println!("Error connecting to {}: {}", addr, e);
                 Err(Box::new(e))
             }
         }
@@ -227,7 +225,7 @@ impl Transport for TcpTransport {
                 Err(e) => {
                     if attempts >= max_attemps {
                         // stop trying
-                        println!("Error connecting to {}: {}", addr, e);
+                        panic!("Error connecting to {}: {}", addr, e);
                         return Err(e)
                     } else {
                         // exponential backoff

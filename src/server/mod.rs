@@ -64,7 +64,7 @@ pub mod file_server {
 
     /// helper functions for serializing and deserializing the payload
     impl MessageData {
-        pub fn from_buffer(buf: Vec<u8>) -> MessageData {
+        pub fn from_buffer(buf: &Vec<u8>) -> MessageData {
             bincode::deserialize(&buf).unwrap()
         }
 
@@ -97,9 +97,8 @@ pub mod file_server {
         pub fn start(self: Arc<Self>) -> Result<(), Box<dyn std::error::Error>> {
             // start the transport layer and listen for incoming connections
             let _ = self.transport.clone().listen_and_accept();
-            println!("server running on {}", self.transport.clone().addr());
+            self.logger(format!("server running on {}", self.transport.clone().addr()));
 
-            // bootstrap the network
             self.bootstrap_network();
 
             self.run()
@@ -137,7 +136,7 @@ pub mod file_server {
         pub fn store_data(self: &Arc<Self>, key: String, r: &mut dyn io::Read) {
             let mut buf = vec![0; 1024];
             let n = r.read(&mut buf).unwrap();
-            println!("[server] read {} bytes", n);
+            self.logger(format!("read {} bytes", n));
             buf = buf[..n].to_vec();
             // questionable design choice: we are reading the stream twice
             match self.store.write(key.clone(), &mut buf) {
@@ -153,7 +152,7 @@ pub mod file_server {
                     self.broadcast(payload);
                 },
                 Err(e) => {
-                    println!("Error writing to store: {}", e);
+                    self.logger(format!("Error writing to store: {}", e));
                 }
             }
         }
@@ -181,7 +180,7 @@ pub mod file_server {
                 let cloned_self = self.clone();
                 move |peer: Arc<RwLock<T::Peer>>| {
                     let p = peer.read().unwrap();
-                    println!("[server] {} on_peer: {}", if p.is_outbound() { "outbound" } else { "inbound" },  p.addr());
+                    cloned_self.logger(format!("{} on_peer: {}", if p.is_outbound() { "outbound" } else { "inbound" },  p.addr()));
                     cloned_self.peers.write().unwrap().insert(p.addr(), peer.clone());
 
                     true
@@ -191,27 +190,42 @@ pub mod file_server {
             self.transport.clone().register_on_peer(Box::new(cb));
         }
 
-        fn handle_message(self: &Arc<Self>, msg: &Message) {
-            let payload = Payload::from_buffer(msg.payload.clone());
-            match payload.msg_type {
-                MessageType::Store => {
-                    let msg_data = MessageData::from_buffer(payload.msg);
-                    println!("Received data from {}: {} -> {}", msg.from, msg_data.key, String::from_utf8_lossy(&msg_data.data));
-                    self.store.write(msg_data.key, &mut msg_data.data.as_slice()).unwrap();
-                },
-            }
-        }
-
         /// broadcast the payload to all connected peers  
         fn broadcast(self: &Arc<Self>, payload: Payload) {
-            println!("Broadcasting data: {:?}", payload);
+            self.logger(format!("Broadcasting data: {:?}", payload));
             let payload_buffer = payload.to_buffer();
             let peers = self.peers.read().unwrap();
             for (_, peer) in peers.iter() {
                 let mut p = peer.write().unwrap();
-                println!("Sending data to {}: {:?}", p.addr(), payload_buffer);
                 p.send(&payload_buffer).unwrap();
             }
+        }
+
+        /// handle the message received from the transport layer
+        /// will call the right function based on the message type
+        fn handle_message(self: &Arc<Self>, msg: &Message) {
+            let payload = Payload::from_buffer(msg.payload.clone());
+            match payload.msg_type {
+                MessageType::Store => self.handle_store_message(msg.from, &payload),
+            }
+        }
+        
+        /// handle the store message
+        fn handle_store_message(self: &Arc<Self>, from: SocketAddr, payload: &Payload) {
+            let peer = match self.peers.read().unwrap().get(&from) {
+                Some(p) => p,
+                None => {
+                    self.logger(format!("Peer {} not found", from));
+                    return;
+                }
+            };
+            let msg_data = MessageData::from_buffer(&payload.msg);
+            self.logger(format!("Received data from {}: {} -> {}", from, msg_data.key, String::from_utf8_lossy(&msg_data.data)));
+            self.store.write(msg_data.key, &mut msg_data.data.as_slice()).unwrap();
+        }
+
+        fn logger(&self, msg: String) {
+            println!("[server {}] {}", self.transport.clone().addr() , msg);
         }
     }
 }
