@@ -48,7 +48,10 @@ pub trait Transport: Send + Sync + 'static {
     /// dial a remote address
     /// this function should block the current thread until the connection is established 
     /// so that the caller can be sure that the connection is ready
-    fn dial(self: Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>>;
+    fn dial(self: &Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>>;
+    /// dial a remote address with a maximum number of attempts
+    /// will perform an exponential backoff if the connection is not established
+    fn try_dial(self: &Arc<Self>, addr: SocketAddr, max_attemps: u8) -> Result<(), Box<dyn std::error::Error>>;
     /// register a callback function to be called when a new peer is connected
     /// the returned boolean should indicate if the peer has been handled successfully. 
     /// if false, the peer will be closed and removed from the peers list

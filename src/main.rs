@@ -50,7 +50,6 @@ fn main() {
         });
         // thread for peer 1
         s.spawn(|| {
-            thread::sleep(Duration::from_secs(5));
             let p1a = p1.clone();
             thread::spawn(move || {
                 p1.clone().start().unwrap();
@@ -60,10 +59,12 @@ fn main() {
             let r = vec![1, 2, 3, 4];
             p1a.clone().store_data(key, &mut r.as_slice());
         });
-        // s.spawn(|| {
-        //     thread::sleep(Duration::from_secs(30));
-        //     println!("Shutting down server...");
-        //     server.clone().shutdown();
-        // });
+        // thread for peer 2
+        s.spawn(|| {
+            let p2 = make_server("127.0.0.1:5000".to_string(), vec![SocketAddr::from(([127, 0, 0, 1], 3000))]);
+            thread::spawn(move || {
+                p2.clone().start().unwrap();
+            });
+        });
     });
 }

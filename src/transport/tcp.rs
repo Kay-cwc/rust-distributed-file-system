@@ -1,5 +1,5 @@
+use std::char::MAX;
 use std::collections::HashMap;
-use std::env::consts::ARCH;
 use std::io::Write;
 use std::sync::mpsc::{channel, Receiver, Sender, RecvTimeoutError};
 use std::sync::{Arc, Mutex, RwLock};
@@ -203,7 +203,8 @@ impl Transport for TcpTransport {
         Ok(())
     }
 
-    fn dial(self: Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
+    fn dial(self: &Arc<Self>, addr: SocketAddr) -> Result<(), Box<dyn std::error::Error>> {
+        // dial to a remote address
         match TcpStream::connect(addr) {
             Ok(conn) => {
                 self.handle_conn(conn, true);
@@ -212,6 +213,30 @@ impl Transport for TcpTransport {
             Err(e) => {
                 println!("Error connecting to {}: {}", addr, e);
                 Err(Box::new(e))
+            }
+        }
+    }
+
+    fn try_dial(self: &Arc<Self>, addr: SocketAddr, max_attemps: u8) -> Result<(), Box<dyn std::error::Error>> {
+        // dial to a remote address with exponential backoff
+        let mut backoff = Duration::from_secs(1);
+        let mut attempts = 0;
+        loop {
+            match self.dial(addr) {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    if attempts >= max_attemps {
+                        // stop trying
+                        println!("Error connecting to {}: {}", addr, e);
+                        return Err(e)
+                    } else {
+                        // exponential backoff
+                        println!("Error connecting to {}. Retrying in {} seconds", addr, backoff.as_secs());
+                        attempts += 1;
+                        thread::sleep(backoff);
+                        backoff *= 2;
+                    }
+                }
             }
         }
     }
